@@ -79,9 +79,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    await api.post("/logout");
-    setUser(null);
-    navigate("/login");
+    try {
+      let token = getCookie("XSRF-TOKEN");
+      if (!token) {
+        await api.get("/sanctum/csrf-cookie");
+        await new Promise(resolve => setTimeout(resolve, 100));
+        token = getCookie("XSRF-TOKEN");
+      }
+      
+      await api.post("/logout", {}, {
+        headers: {
+          "X-XSRF-TOKEN": token || "",
+        },
+      });
+      
+      setUser(null);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      setUser(null);
+      navigate("/login");
+    }
   };
 
   return (

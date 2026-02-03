@@ -4,7 +4,9 @@ export default [
   route("/login", "login/Login.tsx"),
   
   layout("layouts/AuthLayout.tsx", [
-    index("routes/home.tsx")
+    index("routes/home.tsx"),
+    route("/laporan", "pages/laporan/Laporan.tsx"),
+    route("/rekap", "pages/rekap/Rekap.tsx"),
   ]),
   
 ] satisfies RouteConfig;
