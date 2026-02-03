@@ -28,10 +28,14 @@ export default function MenuAppBar() {
   const menuConfig: Record<string, { title: string; icon: React.ReactNode }> = {
     '/': { title: 'Dashboard', icon: <DashboardIcon /> },
     '/laporan': { title: 'Laporan', icon: <LaporanIcon /> },
-    '/Rekap': { title: 'Rekap', icon: <RekapIcon /> },
+    '/rekap': { title: 'Rekap', icon: <RekapIcon /> },
   };
 
-  const pageTitle = menuConfig[location.pathname]?.title || 'Dashboard';
+  const currentPath = Object.keys(menuConfig).find(path => 
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
+  );
+
+  const pageTitle = currentPath ? menuConfig[currentPath].title : 'Dashboard';
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
