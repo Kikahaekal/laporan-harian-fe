@@ -2,7 +2,7 @@ import * as React from 'react';
 import { 
   AppBar, Box, Toolbar, Typography, IconButton, 
   Drawer, List, ListItem, ListItemButton, ListItemText, ListItemIcon,
-  MenuItem, Menu, Divider
+  MenuItem, Menu, Divider, ListSubheader
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -11,7 +11,10 @@ import {
   Assessment as LaporanIcon,
   History as RekapIcon,
   Person as PersonIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Category as CategoryIcon,
+  Store as StoreIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from "~/context/AuthContext"; 
@@ -29,6 +32,11 @@ export default function MenuAppBar() {
     '/': { title: 'Dashboard', icon: <DashboardIcon /> },
     '/laporan': { title: 'Laporan', icon: <LaporanIcon /> },
     '/rekap': { title: 'Rekap', icon: <RekapIcon /> },
+  };
+
+  const masterDataConfig: Record<string, { title: string; icon: React.ReactNode }> = {
+    '/outlet': { title: 'Outlet', icon: <StoreIcon /> },
+    '/item': { title: 'Item', icon: <CategoryIcon /> },
   };
 
   const currentPath = Object.keys(menuConfig).find(path => 
@@ -117,8 +125,26 @@ export default function MenuAppBar() {
         onClose={() => setIsDrawerOpen(false)}
       >
         <Box sx={{ width: 250 }} role="presentation">
-          <List>
+          <List subheader={<ListSubheader>Menu Utama</ListSubheader>}>
             {Object.entries(menuConfig).map(([path, { title, icon }]) => (
+              <ListItem key={path} disablePadding>
+                <ListItemButton 
+                  onClick={() => handlePageChange(path)}
+                  selected={location.pathname === path}
+                >
+                  <ListItemIcon>
+                    {icon}
+                  </ListItemIcon>
+                  <ListItemText primary={title} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+          
+          <Divider />
+          
+          <List subheader={<ListSubheader>Data Master</ListSubheader>}>
+            {Object.entries(masterDataConfig).map(([path, { title, icon }]) => (
               <ListItem key={path} disablePadding>
                 <ListItemButton 
                   onClick={() => handlePageChange(path)}
