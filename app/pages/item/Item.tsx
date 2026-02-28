@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  CircularProgress,
   Stack,
   InputAdornment,
   Chip,
@@ -30,6 +29,7 @@ import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import SearchIcon from "@mui/icons-material/Search";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import apiBe from "../../lib/axiosBe";
+import { TableRowsSkeleton } from "../../components/TableSkeleton";
 
 interface ItemData {
   id: number;
@@ -197,7 +197,7 @@ export default function Item() {
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} align="center"><CircularProgress sx={{ mt: 2 }} /></TableCell></TableRow>
+                <TableRowsSkeleton rows={6} cols={6} />
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: "text.secondary" }}>Tidak ada data barang.</TableCell></TableRow>
               ) : (

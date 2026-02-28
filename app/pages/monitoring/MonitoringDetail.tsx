@@ -12,13 +12,13 @@ import {
     TableBody,
     TableContainer,
     Chip,
-    CircularProgress,
     Alert,
     Button,
     Divider,
     Card,
     CardContent,
 } from "@mui/material";
+import { CardsSkeleton, TableRowsSkeleton } from "../../components/TableSkeleton";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
@@ -104,8 +104,20 @@ export default function MonitoringDetail() {
 
     if (loading) {
         return (
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
-                <CircularProgress />
+            <Box sx={{ p: 2, maxWidth: 900, margin: "0 auto" }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/monitoring")} sx={{ mb: 1.5 }} disabled>
+                    Kembali ke Monitoring
+                </Button>
+                <CardsSkeleton count={3} />
+                <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+                    <TableContainer>
+                        <Table size="small">
+                            <TableBody>
+                                <TableRowsSkeleton rows={5} cols={7} />
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Paper>
             </Box>
         );
     }

@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  CircularProgress,
   Stack,
   FormControl,
   InputLabel,
@@ -34,6 +33,7 @@ import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SearchIcon from "@mui/icons-material/Search";
 import apiBe from "../../lib/axiosBe";
 import MapPicker from "../../components/MapPicker";
+import { TableRowsSkeleton } from "../../components/TableSkeleton";
 
 const DEFAULT_LAT = 0.918;
 const DEFAULT_LNG = 104.51;
@@ -212,7 +212,7 @@ export default function Outlet() {
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} align="center"><CircularProgress sx={{ mt: 2 }} /></TableCell></TableRow>
+                <TableRowsSkeleton rows={5} cols={6} />
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: "text.secondary" }}>Tidak ada data outlet.</TableCell></TableRow>
               ) : (

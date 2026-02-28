@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import {
     Box, Typography, Stack, Paper, Table, TableHead, TableRow, TableCell,
-    TableBody, TableContainer, Chip, CircularProgress, Alert, Button,
+    TableBody, TableContainer, Chip, Alert, Button,
     FormControl, InputLabel, Select, MenuItem, Divider, IconButton, Tooltip,
-    Dialog, DialogTitle, DialogContent, DialogActions, InputAdornment,
+    Dialog, DialogTitle, DialogContent, DialogActions,
     Snackbar, Tabs, Tab, Card, CardContent, Badge,
 } from "@mui/material";
+import { TableRowsSkeleton, CardsSkeleton } from "../../components/TableSkeleton";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import EditIcon from "@mui/icons-material/Edit";
@@ -281,7 +282,9 @@ export default function Monitoring() {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {/* ── Summary Cards ── */}
-            {!loading && allNotas.length > 0 && (
+            {loading ? (
+                <CardsSkeleton count={5} />
+            ) : allNotas.length > 0 && (
                 <Stack direction="row" spacing={1.5} mb={2} flexWrap="wrap">
                     <StatCard label="Total Nota" value={summary.total} />
                     <StatCard label="Invoiced" value={summary.invoiced} color="success.main" />
@@ -296,7 +299,22 @@ export default function Monitoring() {
             )}
 
             {loading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box>
+                <Paper variant="outlined">
+                    <TableContainer>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: "primary.main" }}>
+                                    {["#", "No. Nota", "Tgl / Hari", "Outlet", "Items", "Grand Total", "Deposit", "Sisa", "Status", "Aksi"].map((h) => (
+                                        <TableCell key={h} sx={{ color: "white", fontWeight: 600 }}>{h}</TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                <TableRowsSkeleton rows={6} cols={10} />
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Paper>
             ) : allNotas.length === 0 ? (
                 <Alert severity="info">Tidak ada data untuk {MONTHS[selectedMonth - 1]} {selectedYear}.</Alert>
             ) : (

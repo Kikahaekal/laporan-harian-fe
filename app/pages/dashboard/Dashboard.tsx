@@ -29,6 +29,7 @@ import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { useNavigate } from "react-router";
 import apiBe from "../../lib/axiosBe";
 import { type Sale } from "../data/constant";
+import { CardsSkeleton, TableRowsSkeleton } from "../../components/TableSkeleton";
 
 function todayRange() {
   const now = new Date();
@@ -159,34 +160,38 @@ export default function Dashboard() {
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       {/* Summary Cards */}
-      <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
-        <SummaryCard
-          icon={<ReceiptLongIcon sx={{ fontSize: 36 }} />}
-          label="Total Nota Hari Ini"
-          value={loading ? "—" : todayNota.length}
-          color="primary"
-        />
-        <SummaryCard
-          icon={<LocalShippingIcon sx={{ fontSize: 36 }} />}
-          label="DROPPING Aktif"
-          value={loading ? "—" : dropping}
-          color="warning"
-          sub="Menunggu invoice"
-        />
-        <SummaryCard
-          icon={<CheckCircleIcon sx={{ fontSize: 36 }} />}
-          label="INVOICED Hari Ini"
-          value={loading ? "—" : invoiced}
-          color="success"
-        />
-        <SummaryCard
-          icon={<AttachMoneyIcon sx={{ fontSize: 36 }} />}
-          label={`Total Deposit — ${monthLabel}`}
-          value={loading ? "—" : `Rp ${formatRupiah(totalDeposit)}`}
-          color="info"
-          sub={`dari Rp ${formatRupiah(totalGrandTotal)} total tagihan`}
-        />
-      </Stack>
+      {loading ? (
+        <CardsSkeleton count={4} />
+      ) : (
+        <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
+          <SummaryCard
+            icon={<ReceiptLongIcon sx={{ fontSize: 36 }} />}
+            label="Total Nota Hari Ini"
+            value={todayNota.length}
+            color="primary"
+          />
+          <SummaryCard
+            icon={<LocalShippingIcon sx={{ fontSize: 36 }} />}
+            label="DROPPING Aktif"
+            value={dropping}
+            color="warning"
+            sub="Menunggu invoice"
+          />
+          <SummaryCard
+            icon={<CheckCircleIcon sx={{ fontSize: 36 }} />}
+            label="INVOICED Hari Ini"
+            value={invoiced}
+            color="success"
+          />
+          <SummaryCard
+            icon={<AttachMoneyIcon sx={{ fontSize: 36 }} />}
+            label={`Total Deposit — ${monthLabel}`}
+            value={`Rp ${formatRupiah(totalDeposit)}`}
+            color="info"
+            sub={`dari Rp ${formatRupiah(totalGrandTotal)} total tagihan`}
+          />
+        </Stack>
+      )}
 
       {/* Quick Actions */}
       <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap">
@@ -226,9 +231,24 @@ export default function Dashboard() {
         <Divider />
 
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
-            <CircularProgress />
-          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: "grey.50" }}>
+                  <TableCell sx={{ fontWeight: 600 }}>No. Nota</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Tanggal</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Outlet ID</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Grand Total</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Deposit</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Aksi</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRowsSkeleton rows={5} cols={7} />
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : recentNota.length === 0 ? (
           <Box sx={{ py: 4, textAlign: "center" }}>
             <Typography color="text.secondary">Belum ada nota transaksi hari ini.</Typography>
@@ -292,16 +312,19 @@ export default function Dashboard() {
               </TableBody>
             </Table>
           </TableContainer>
-        )}
+        )
+        }
 
-        {!loading && todayNota.length > 0 && (
-          <Box sx={{ px: 2, py: 1, borderTop: 1, borderColor: "divider", display: "flex", justifyContent: "flex-end" }}>
-            <Button size="small" endIcon={<ReceiptLongIcon />} onClick={() => navigate("/monitoring")}>
-              Lihat Semua Nota
-            </Button>
-          </Box>
-        )}
-      </Paper>
-    </Box>
+        {
+          !loading && todayNota.length > 0 && (
+            <Box sx={{ px: 2, py: 1, borderTop: 1, borderColor: "divider", display: "flex", justifyContent: "flex-end" }}>
+              <Button size="small" endIcon={<ReceiptLongIcon />} onClick={() => navigate("/monitoring")}>
+                Lihat Semua Nota
+              </Button>
+            </Box>
+          )
+        }
+      </Paper >
+    </Box >
   );
 }

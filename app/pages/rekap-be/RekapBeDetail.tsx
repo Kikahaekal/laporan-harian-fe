@@ -20,6 +20,7 @@ import CalendarViewWeekIcon from "@mui/icons-material/CalendarViewWeek";
 import apiBe from "../../lib/axiosBe";
 import { MONTHS } from "../data/constant";
 import { type Sale } from "../data/constant";
+import { TableRowsSkeleton, CardsSkeleton } from "../../components/TableSkeleton";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,12 @@ export default function RekapBeDetail() {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {isLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box>
+                <Box sx={{ p: 2 }}>
+                    <CardsSkeleton count={6} />
+                    <Box sx={{ mt: 3 }}>
+                        <TableRowsSkeleton rows={4} cols={7} />
+                    </Box>
+                </Box>
             ) : allNotas.length === 0 && !isLoading ? (
                 <Alert severity="info">Tidak ada data untuk {MONTHS[selectedMonth - 1]} {selectedYear}.</Alert>
             ) : (

@@ -8,7 +8,7 @@ import {
     List,
     ListItemButton,
     ListItemText,
-    CircularProgress,
+    Skeleton,
     Paper,
     Divider,
     Alert,
@@ -122,9 +122,18 @@ export default function RekapBe() {
             </Typography>
 
             {loading && (
-                <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-                    <CircularProgress />
-                </Box>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Stack key={i} direction="row" spacing={2} alignItems="center" sx={{ py: 1.5, borderBottom: i < 3 ? "1px solid #eee" : "none" }}>
+                            <Skeleton variant="circular" width={28} height={28} animation="wave" />
+                            <Skeleton variant="text" width={100} animation="wave" />
+                            <Box sx={{ flex: 1 }} />
+                            <Skeleton variant="rounded" width={70} height={22} animation="wave" />
+                            <Skeleton variant="rounded" width={90} height={22} animation="wave" />
+                            <Skeleton variant="rounded" width={80} height={22} animation="wave" />
+                        </Stack>
+                    ))}
+                </Paper>
             )}
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
