@@ -11,7 +11,9 @@ import {
   CircularProgress,
   Paper,
   Divider,
-  Alert
+  Alert,
+  Chip,
+  Stack
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import EditIcon from "@mui/icons-material/Edit";
@@ -35,21 +37,26 @@ interface GroupedPeriods {
   [year: number]: number[];
 }
 
+interface StatusCount {
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 export default function Rekap() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [groupedData, setGroupedData] = useState<GroupedPeriods>({});
+  const [statusByPeriod, setStatusByPeriod] = useState<Record<string, StatusCount>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPeriods = async () => {
       try {
         setLoading(true);
-        // Panggil endpoint baru: ambil daftar tahun/bulan yg tersedia
         const response = await api.get("/api/sales-reports/periods");
         const rawData: PeriodData[] = response.data;
 
-        // GROUPING: Ubah array flat menjadi object berdasarkan tahun
         const grouped = rawData.reduce((acc, curr) => {
           const { year, month } = curr;
           if (!acc[year]) {
@@ -70,6 +77,50 @@ export default function Rekap() {
 
     fetchPeriods();
   }, []);
+
+  // Fetch status ringkasan per periode (setelah groupedData ada)
+  useEffect(() => {
+    if (Object.keys(groupedData).length === 0) return;
+
+    const periods: { year: number; month: number }[] = [];
+    Object.keys(groupedData)
+      .map(Number)
+      .forEach((year) => {
+        groupedData[year].forEach((month) => {
+          periods.push({ year, month });
+        });
+      });
+
+    const fetchStatusForPeriods = async () => {
+      try {
+        const results = await Promise.all(
+          periods.map(({ year, month }) =>
+            api.get("/api/sales-reports", { params: { year, month } }).then((res) => ({
+              year,
+              month,
+              rows: res.data as { status?: string }[],
+            }))
+          )
+        );
+        const next: Record<string, StatusCount> = {};
+        results.forEach(({ year, month, rows }) => {
+          const key = `${year}-${month}`;
+          next[key] = { pending: 0, approved: 0, rejected: 0 };
+          rows.forEach((row) => {
+            const s = row.status ?? "pending";
+            if (s === "pending") next[key].pending += 1;
+            else if (s === "approved") next[key].approved += 1;
+            else next[key].rejected += 1;
+          });
+        });
+        setStatusByPeriod(next);
+      } catch (err) {
+        console.error("Gagal ambil ringkasan status:", err);
+      }
+    };
+
+    fetchStatusForPeriods();
+  }, [groupedData]);
 
   // Navigasi ke Halaman Edit dengan Query Params
   const handleMonthClick = (year: number, month: number) => {
@@ -113,14 +164,27 @@ export default function Rekap() {
                       {idx > 0 && <Divider />} 
                       
                       <ListItemButton onClick={() => handleMonthClick(year, monthIndex)}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 1 }}>
                             <CalendarMonthIcon color="action" sx={{ mr: 2 }} />
                             
                             <ListItemText 
-                              // monthIndex - 1 karena array bulan mulai dari 0 (Januari = index 0)
                               primary={MONTHS[monthIndex - 1]} 
                               primaryTypographyProps={{ fontWeight: 500 }}
                             />
+
+                            {statusByPeriod[`${year}-${monthIndex}`] && (
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ flex: 1, justifyContent: 'flex-end' }}>
+                                {statusByPeriod[`${year}-${monthIndex}`].pending > 0 && (
+                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].pending} Pending`} color="warning" variant="outlined" />
+                                )}
+                                {statusByPeriod[`${year}-${monthIndex}`].approved > 0 && (
+                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].approved} Approved`} color="success" variant="outlined" />
+                                )}
+                                {statusByPeriod[`${year}-${monthIndex}`].rejected > 0 && (
+                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].rejected} Rejected`} color="error" variant="outlined" />
+                                )}
+                              </Stack>
+                            )}
                             
                             <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 Edit <EditIcon fontSize="small" />
