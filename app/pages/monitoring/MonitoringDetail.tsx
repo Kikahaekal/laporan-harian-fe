@@ -92,10 +92,10 @@ export default function MonitoringDetail() {
                     qty_order: acc.qty_order + (item.qty_order || 0),
                     qty_sold: acc.qty_sold + (item.qty_sold || 0),
                     qty_returned: acc.qty_returned + (item.qty_returned || 0),
-                    qty_expired: acc.qty_expired + (item.qty_expired || 0),
+                    qty_sisa: acc.qty_sisa + ((item.qty_order || 0) - (item.qty_sold || 0) - (item.qty_returned || 0)),
                     subtotal: acc.subtotal + Number(item.subtotal || 0),
                 }),
-                { qty_order: 0, qty_sold: 0, qty_returned: 0, qty_expired: 0, subtotal: 0 }
+                { qty_order: 0, qty_sold: 0, qty_returned: 0, qty_sisa: 0, subtotal: 0 }
             ),
         [saleItems]
     );
@@ -166,8 +166,8 @@ export default function MonitoringDetail() {
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Outlet</Typography>
                                 {nota.outlet ? (
                                     <>
-                                        <Typography variant="body1" fontWeight={600}>{nota.outlet.code}</Typography>
-                                        <Typography variant="body2" color="text.secondary">{nota.outlet.name}</Typography>
+                                        <Typography variant="body1" fontWeight={600}>{nota.outlet.name}</Typography>
+                                        <Typography variant="body2" color="text.secondary">{nota.outlet.code}</Typography>
                                     </>
                                 ) : (
                                     <Typography variant="body1">ID #{nota.outlet_id}</Typography>
@@ -197,7 +197,7 @@ export default function MonitoringDetail() {
                             <PersonIcon color="action" sx={{ mt: 0.25 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>User / Sales</Typography>
-                                <Typography variant="body1" fontWeight={600}>ID #{nota.user_id}</Typography>
+                                <Typography variant="body1" fontWeight={600}>{nota.user.name}</Typography>
                             </Box>
                         </Stack>
                     </CardContent>
@@ -258,7 +258,7 @@ export default function MonitoringDetail() {
                                     <TableCell sx={{ fontWeight: 600 }} align="center">Qty Order</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }} align="center">Qty Sold</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }} align="center">Qty Retur</TableCell>
-                                    <TableCell sx={{ fontWeight: 600 }} align="center">Qty Expired</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }} align="center">Sisa</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }} align="right">Harga</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }} align="right">Subtotal</TableCell>
                                 </TableRow>
@@ -288,13 +288,14 @@ export default function MonitoringDetail() {
                                             )}
                                         </TableCell>
                                         <TableCell align="center">
-                                            {item.qty_expired > 0 ? (
-                                                <Typography color="error.main" fontWeight={600} variant="body2">
-                                                    {item.qty_expired}
-                                                </Typography>
-                                            ) : (
-                                                <Typography color="text.secondary" variant="body2">0</Typography>
-                                            )}
+                                            {(() => {
+                                                const sisa = item.qty_order - item.qty_sold - item.qty_returned;
+                                                return sisa > 0 ? (
+                                                    <Typography color="error.main" fontWeight={600} variant="body2">{sisa}</Typography>
+                                                ) : (
+                                                    <Typography color="text.secondary" variant="body2">0</Typography>
+                                                );
+                                            })()}
                                         </TableCell>
                                         <TableCell align="right">{formatRupiah(item.price_at_moment)}</TableCell>
                                         <TableCell align="right">
@@ -313,8 +314,8 @@ export default function MonitoringDetail() {
                                     <TableCell align="center" sx={{ fontWeight: 700, color: totals.qty_returned > 0 ? "warning.main" : "inherit" }}>
                                         {totals.qty_returned}
                                     </TableCell>
-                                    <TableCell align="center" sx={{ fontWeight: 700, color: totals.qty_expired > 0 ? "error.main" : "inherit" }}>
-                                        {totals.qty_expired}
+                                    <TableCell align="center" sx={{ fontWeight: 700, color: totals.qty_sisa > 0 ? "error.main" : "inherit" }}>
+                                        {totals.qty_sisa}
                                     </TableCell>
                                     <TableCell />
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>

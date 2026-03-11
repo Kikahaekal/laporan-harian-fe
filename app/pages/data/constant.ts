@@ -3,6 +3,7 @@ export type ReportStatus = "pending" | "approved" | "rejected";
 
 // ── Types untuk laporan-be (Transaksi Sales dari Android) ──────────────────
 export type SaleStatus = "DROPPING" | "INVOICED";
+export type PaymentStatus = "LUNAS" | "BELUM_LUNAS" | "CICILAN";
 
 export type SaleItem = {
   id: number;
@@ -11,7 +12,7 @@ export type SaleItem = {
   qty_order: number;
   qty_sold: number;
   qty_returned: number;
-  qty_expired: number;
+
   price_at_moment: string;
   subtotal: string;
   item?: { id: number; code: string; name: string };
@@ -24,10 +25,12 @@ export type Sale = {
   user_id: number;
   transaction_date: string;
   status: SaleStatus;
+  payment_status: PaymentStatus | null;
   deposit: string;
   grand_total: string;
   note: string | null;
   outlet?: { id: number; code: string; name: string };
+  user?: { id: number; name: string };
   sale_items?: SaleItem[];
 };
 

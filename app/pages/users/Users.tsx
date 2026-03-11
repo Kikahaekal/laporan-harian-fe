@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Box,
     Typography,
@@ -26,6 +26,13 @@ import {
     Alert,
     Snackbar,
     InputAdornment,
+    Divider,
+    Tooltip,
+    List,
+    ListItem,
+    ListItemText,
+    ListItemSecondaryAction,
+    Autocomplete,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -34,6 +41,8 @@ import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import SearchIcon from "@mui/icons-material/Search";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import StoreIcon from "@mui/icons-material/Store";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
 import apiBe from "../../lib/axiosBe";
 
 interface UserData {
@@ -43,14 +52,14 @@ interface UserData {
     role?: string;
 }
 
-const ROLES = ["admin", "sales"];
+interface OutletSimple {
+    id: number;
+    code: string;
+    name: string;
+}
 
-const EMPTY_FORM = {
-    name: "",
-    email: "",
-    password: "",
-    role: "sales",
-};
+const ROLES = ["admin", "sales"];
+const EMPTY_FORM = { name: "", email: "", password: "", role: "sales" };
 
 export default function Users() {
     const [users, setUsers] = useState<UserData[]>([]);
@@ -67,10 +76,16 @@ export default function Users() {
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
 
+    // ── Assign Outlet state ────────────────────────────────────────────────────
+    const [outletDialogUser, setOutletDialogUser] = useState<UserData | null>(null);
+    const [allOutlets, setAllOutlets] = useState<OutletSimple[]>([]);
+    const [userOutlets, setUserOutlets] = useState<OutletSimple[]>([]);
+    const [selectedOutlet, setSelectedOutlet] = useState<OutletSimple | null>(null);
+    const [outletLoading, setOutletLoading] = useState(false);
+
     const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
         open: false, msg: "", severity: "success",
     });
-
     const showSnack = (msg: string, severity: "success" | "error" = "success") =>
         setSnack({ open: true, msg, severity });
 
@@ -87,7 +102,28 @@ export default function Users() {
         }
     };
 
-    useEffect(() => { fetchUsers(); }, []);
+    const fetchAllOutlets = async () => {
+        try {
+            const res = await apiBe.get("/api/web/outlets");
+            const raw = res.data;
+            setAllOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+        } catch { /* silent */ }
+    };
+
+    const fetchUserOutlets = useCallback(async (userId: number) => {
+        try {
+            setOutletLoading(true);
+            const res = await apiBe.get(`/api/web/outlets?user_id=${userId}`);
+            const raw = res.data;
+            setUserOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+        } catch {
+            showSnack("Gagal memuat outlet user.", "error");
+        } finally {
+            setOutletLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchUsers(); fetchAllOutlets(); }, []);
 
     const filtered = users.filter(
         (u) =>
@@ -95,6 +131,7 @@ export default function Users() {
             u.email.toLowerCase().includes(search.toLowerCase())
     );
 
+    // ── User CRUD ──────────────────────────────────────────────────────────────
     const handleOpenAdd = () => {
         setIsEdit(false);
         setFormData({ ...EMPTY_FORM });
@@ -121,7 +158,6 @@ export default function Users() {
         }
         setSaving(true);
         try {
-            // Kalau edit dan password kosong, jangan kirim password
             const payload: Record<string, string> = {
                 name: formData.name,
                 email: formData.email,
@@ -159,10 +195,47 @@ export default function Users() {
         }
     };
 
+    // ── Assign/Unassign Outlet ─────────────────────────────────────────────────
+    const openOutletDialog = (user: UserData) => {
+        setOutletDialogUser(user);
+        setSelectedOutlet(null);
+        fetchUserOutlets(user.id);
+    };
+
+    const handleAssignOutlet = async () => {
+        if (!outletDialogUser || !selectedOutlet) return;
+        try {
+            await apiBe.post(`/api/web/users/${outletDialogUser.id}/outlets`, {
+                outlet_id: selectedOutlet.id,
+            });
+            setSelectedOutlet(null);
+            fetchUserOutlets(outletDialogUser.id);
+            showSnack(`Outlet "${selectedOutlet.name}" berhasil di-assign ke ${outletDialogUser.name}.`);
+        } catch (err: any) {
+            showSnack(err.response?.data?.message || "Gagal assign outlet.", "error");
+        }
+    };
+
+    const handleUnassignOutlet = async (outlet: OutletSimple) => {
+        if (!outletDialogUser) return;
+        try {
+            await apiBe.delete(`/api/web/users/${outletDialogUser.id}/outlets/${outlet.id}`);
+            fetchUserOutlets(outletDialogUser.id);
+            showSnack(`Outlet "${outlet.name}" berhasil di-unassign.`);
+        } catch {
+            showSnack("Gagal unassign outlet.", "error");
+        }
+    };
+
+    // Outlet yang belum di-assign ke user ini
+    const availableOutlets = allOutlets.filter(
+        (o) => !userOutlets.some((uo) => uo.id === o.id)
+    );
+
     const deleteTarget = users.find((u) => u.id === deleteId);
 
     return (
-        <Box sx={{ p: 3, maxWidth: 900, margin: "0 auto" }}>
+        <Box sx={{ p: 3, maxWidth: 980, margin: "0 auto" }}>
             {/* Header */}
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
                 <Typography variant="h5" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -176,6 +249,7 @@ export default function Users() {
 
             <Alert severity="info" sx={{ mb: 2 }}>
                 Pengguna yang ditambahkan di sini dapat login ke <strong>Aplikasi Android</strong> sebagai akun sales.
+                Klik tombol <StoreIcon sx={{ fontSize: 16, verticalAlign: "middle" }} /> untuk mengatur outlet milik user.
             </Alert>
 
             {/* Search */}
@@ -221,6 +295,11 @@ export default function Users() {
                                             />
                                         </TableCell>
                                         <TableCell align="center">
+                                            <Tooltip title="Kelola Outlet">
+                                                <IconButton color="success" size="small" onClick={() => openOutletDialog(row)}>
+                                                    <StoreIcon />
+                                                </IconButton>
+                                            </Tooltip>
                                             <IconButton color="primary" size="small" onClick={() => handleOpenEdit(row)}>
                                                 <EditIcon />
                                             </IconButton>
@@ -236,7 +315,89 @@ export default function Users() {
                 </TableContainer>
             </Paper>
 
-            {/* Form Dialog */}
+            {/* ── Dialog: Assign Outlet ──────────────────────────────────────── */}
+            <Dialog
+                open={outletDialogUser !== null}
+                onClose={() => setOutletDialogUser(null)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <StoreIcon color="success" />
+                    Outlet — {outletDialogUser?.name}
+                </DialogTitle>
+                <DialogContent>
+                    {/* Tambah outlet */}
+                    <Typography variant="subtitle2" fontWeight={600} mb={1}>Assign Outlet Baru</Typography>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                        <Autocomplete
+                            fullWidth
+                            options={availableOutlets}
+                            getOptionLabel={(o) => `${o.code} — ${o.name}`}
+                            value={selectedOutlet}
+                            onChange={(_, val) => setSelectedOutlet(val)}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Pilih Outlet" size="small" />
+                            )}
+                        />
+                        <Button
+                            variant="contained"
+                            color="success"
+                            onClick={handleAssignOutlet}
+                            disabled={!selectedOutlet}
+                            sx={{ whiteSpace: "nowrap", minWidth: 90 }}
+                        >
+                            Assign
+                        </Button>
+                    </Stack>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* Daftar outlet yang sudah dimiliki */}
+                    <Typography variant="subtitle2" fontWeight={600} mb={1}>
+                        Outlet yang Dimiliki
+                        <Chip label={userOutlets.length} size="small" sx={{ ml: 1 }} />
+                    </Typography>
+                    {outletLoading ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                            <CircularProgress size={24} />
+                        </Box>
+                    ) : userOutlets.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
+                            Belum ada outlet yang di-assign ke user ini.
+                        </Typography>
+                    ) : (
+                        <List dense sx={{ bgcolor: "background.default", borderRadius: 1 }}>
+                            {userOutlets.map((outlet) => (
+                                <ListItem key={outlet.id} divider>
+                                    <ListItemText
+                                        primary={outlet.name}
+                                        secondary={outlet.code}
+                                        primaryTypographyProps={{ fontWeight: 500 }}
+                                    />
+                                    <ListItemSecondaryAction>
+                                        <Tooltip title="Hapus dari user ini">
+                                            <IconButton
+                                                edge="end"
+                                                color="error"
+                                                size="small"
+                                                onClick={() => handleUnassignOutlet(outlet)}
+                                            >
+                                                <LinkOffIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </ListItemSecondaryAction>
+                                </ListItem>
+                            ))}
+                        </List>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOutletDialogUser(null)} color="inherit">Tutup</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ── Dialog: Form User ──────────────────────────────────────────── */}
             <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>{isEdit ? "Edit Pengguna" : "Tambah Pengguna Baru"}</DialogTitle>
                 <DialogContent>
@@ -294,7 +455,7 @@ export default function Users() {
                 </DialogActions>
             </Dialog>
 
-            {/* Delete Confirm */}
+            {/* ── Delete confirm ─────────────────────────────────────────────── */}
             <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)} maxWidth="xs">
                 <DialogTitle>Hapus Pengguna?</DialogTitle>
                 <DialogContent>

@@ -12,6 +12,7 @@ export default [
     route("/monitoring/:id", "pages/monitoring/MonitoringDetail.tsx"),
     route("/outlet", "pages/outlet/Outlet.tsx"),
     route("/item", "pages/item/Item.tsx"),
+    route("/tagihan", "pages/tagihan/Tagihan.tsx"),
     route("/users", "pages/users/Users.tsx")
   ]),
 

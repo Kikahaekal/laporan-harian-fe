@@ -63,7 +63,6 @@ interface SaleItem {
     qty_order: number;
     qty_sold: number;
     qty_returned: number;
-    qty_expired: number;
     price_at_moment: string | number;
     subtotal: string | number;
     item?: { id: number; code: string; name: string; stock?: number };
@@ -138,8 +137,8 @@ function DroppingItemTable({
                     <TableBody>
                         {items.map((it) => {
                             const currentQty = editedQty[it.id] ?? it.qty_order;
-                            // Sisa = qty_order - (terjual+retur+rusak). Saat DROPPING semua 0, jadi = qty_order
-                            const sisa = currentQty - (it.qty_sold + it.qty_returned + it.qty_expired);
+                            // Sisa = qty_order - (terjual + retur). Saat DROPPING semua 0, jadi = qty_order
+                            const sisa = currentQty - (it.qty_sold + it.qty_returned);
                             return (
                                 <TableRow key={it.id} hover>
                                     <TableCell>
@@ -213,14 +212,13 @@ function InvoicedItemTable({ items }: { items: SaleItem[] }) {
                         <TableCell align="center" sx={{ fontWeight: 700 }}>Order</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 700 }}>Terjual</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 700 }}>Retur</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700 }}>Rusak</TableCell>
                         <TableCell align="center" sx={{ fontWeight: 700, color: "error.main" }}>Sisa</TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>Subtotal</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {items.map((it) => {
-                        const sisa = it.qty_order - it.qty_sold - it.qty_returned - it.qty_expired;
+                        const sisa = it.qty_order - it.qty_sold - it.qty_returned;
                         return (
                             <TableRow key={it.id} hover>
                                 <TableCell>
@@ -230,7 +228,6 @@ function InvoicedItemTable({ items }: { items: SaleItem[] }) {
                                 <TableCell align="center">{it.qty_order}</TableCell>
                                 <TableCell align="center">{it.qty_sold}</TableCell>
                                 <TableCell align="center">{it.qty_returned}</TableCell>
-                                <TableCell align="center">{it.qty_expired}</TableCell>
                                 <TableCell align="center">
                                     <Chip
                                         label={sisa}
@@ -417,7 +414,7 @@ function NotaCard({
                     {isDropping ? (
                         // DROPPING: editable deposit + note + simpan
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems="flex-end">
-                            <TextField
+                            {/* <TextField
                                 label="Deposit (Rp)"
                                 size="small"
                                 type="number"
@@ -425,7 +422,7 @@ function NotaCard({
                                 onChange={(e) => setDeposit(e.target.value)}
                                 sx={{ width: 180 }}
                                 inputProps={{ min: 0 }}
-                            />
+                            /> */}
                             <TextField
                                 label="Catatan"
                                 size="small"

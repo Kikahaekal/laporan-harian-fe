@@ -16,6 +16,7 @@ import {
   Category as CategoryIcon,
   Store as StoreIcon,
   ManageAccounts as ManageAccountsIcon,
+  AccountBalanceWallet as WalletIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from "~/context/AuthContext";
@@ -23,7 +24,7 @@ import { useAuth } from "~/context/AuthContext";
 export default function MenuAppBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, isAdmin } = useAuth();
 
   const [isDrawerOpen, setIsDrawerOpen] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -42,11 +43,16 @@ export default function MenuAppBar() {
 
 
   // ── Data Master ──
-  const masterDataConfig: Record<string, { title: string; icon: React.ReactNode }> = {
+  const masterDataConfigFull: Record<string, { title: string; icon: React.ReactNode }> = {
     '/outlet': { title: 'Outlet', icon: <StoreIcon /> },
     '/item': { title: 'Item / Barang', icon: <CategoryIcon /> },
-    '/users': { title: 'Pengguna', icon: <ManageAccountsIcon /> },
+    '/tagihan': { title: 'Tagihan', icon: <WalletIcon color="error" />, adminOnly: true } as any,
+    '/users': { title: 'Pengguna', icon: <ManageAccountsIcon />, adminOnly: true } as any,
   };
+  // Filter berdasarkan role: sales tidak bisa lihat menu admin
+  const masterDataConfig = Object.fromEntries(
+    Object.entries(masterDataConfigFull).filter(([, v]) => isAdmin || !(v as any).adminOnly)
+  );
 
   const allMenus = { ...menuLaporan, ...menuKanvas, ...masterDataConfig };
   const currentPath = Object.keys(allMenus).find((path) =>

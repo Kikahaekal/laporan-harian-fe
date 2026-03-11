@@ -30,7 +30,6 @@ interface SaleItemDetail {
     qty_order: number;
     qty_sold: number;
     qty_returned: number;
-    qty_expired: number;
     price_at_moment: number | string;
     subtotal: number | string;
     item?: { id: number; code: string; name: string };
@@ -168,17 +167,17 @@ export default function RekapBeDetail() {
 
     // Per-item
     const perItem = useMemo(() => {
-        const map = new Map<number, { code: string; name: string; qtyOrder: number; qtySold: number; qtyRetur: number; qtyExpired: number; subtotal: number }>();
+        const map = new Map<number, { code: string; name: string; qtyOrder: number; qtySold: number; qtyRetur: number; qtySisa: number; subtotal: number }>();
         allNotas.forEach((n) => {
             (n.saleItems ?? []).forEach((si) => {
                 const key = si.item_id;
-                const prev = map.get(key) ?? { code: si.item?.code ?? "", name: si.item?.name ?? `#${key}`, qtyOrder: 0, qtySold: 0, qtyRetur: 0, qtyExpired: 0, subtotal: 0 };
+                const prev = map.get(key) ?? { code: si.item?.code ?? "", name: si.item?.name ?? `#${key}`, qtyOrder: 0, qtySold: 0, qtyRetur: 0, qtySisa: 0, subtotal: 0 };
                 map.set(key, {
                     ...prev,
                     qtyOrder: prev.qtyOrder + (si.qty_order || 0),
                     qtySold: prev.qtySold + (si.qty_sold || 0),
                     qtyRetur: prev.qtyRetur + (si.qty_returned || 0),
-                    qtyExpired: prev.qtyExpired + (si.qty_expired || 0),
+                    qtySisa: prev.qtySisa + ((si.qty_order || 0) - (si.qty_sold || 0) - (si.qty_returned || 0)),
                     subtotal: prev.subtotal + Number(si.subtotal || 0),
                 });
             });
@@ -386,7 +385,7 @@ export default function RekapBeDetail() {
                                             <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Qty Order</TableCell>
                                             <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Qty Terjual</TableCell>
                                             <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Retur</TableCell>
-                                            <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Kadaluarsa</TableCell>
+                                            <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Sisa</TableCell>
                                             <TableCell sx={{ color: "white", fontWeight: 600 }} align="right">Subtotal</TableCell>
                                         </TableRow>
                                     </TableHead>
@@ -402,7 +401,7 @@ export default function RekapBeDetail() {
                                                 <TableCell align="right">{item.qtyOrder}</TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 600, color: "success.main" }}>{item.qtySold}</TableCell>
                                                 <TableCell align="right" sx={{ color: "warning.main" }}>{item.qtyRetur}</TableCell>
-                                                <TableCell align="right" sx={{ color: "error.main" }}>{item.qtyExpired}</TableCell>
+                                                <TableCell align="right" sx={{ color: item.qtySisa > 0 ? "error.main" : "text.secondary" }}>{item.qtySisa}</TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 600 }}>Rp {fmtRupiah(item.subtotal)}</TableCell>
                                             </TableRow>
                                         ))}
@@ -415,8 +414,8 @@ export default function RekapBeDetail() {
                                                 <TableCell align="right" sx={{ fontWeight: 700 }}>
                                                     {perItem.reduce((s, i) => s + i.qtyRetur, 0)}
                                                 </TableCell>
-                                                <TableCell align="right" sx={{ fontWeight: 700 }}>
-                                                    {perItem.reduce((s, i) => s + i.qtyExpired, 0)}
+                                                <TableCell align="right" sx={{ fontWeight: 700, color: perItem.reduce((s, i) => s + i.qtySisa, 0) > 0 ? "error.main" : "text.secondary" }}>
+                                                    {perItem.reduce((s, i) => s + i.qtySisa, 0)}
                                                 </TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 700, color: "primary.main" }}>
                                                     Rp {fmtRupiah(perItem.reduce((s, i) => s + i.subtotal, 0))}
@@ -521,12 +520,14 @@ export default function RekapBeDetail() {
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="right">Deposit</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="right">Sisa</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
+                                                                                <TableCell sx={{ fontWeight: 600 }} align="center">Foto</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="center"></TableCell>
                                                                             </TableRow>
                                                                         </TableHead>
                                                                         <TableBody>
                                                                             {wnNotas.map((nota) => {
                                                                                 const sisa = Number(nota.grand_total || 0) - Number(nota.deposit || 0);
+                                                                                const photoUrl = (nota as any).closed_photo_url ?? null;
                                                                                 return (
                                                                                     <TableRow key={nota.id} hover>
                                                                                         <TableCell sx={{ fontFamily: "monospace", fontSize: "0.78rem", fontWeight: 600 }}>{nota.nota_number}</TableCell>
@@ -534,8 +535,8 @@ export default function RekapBeDetail() {
                                                                                         <TableCell>
                                                                                             {nota.outlet ? (
                                                                                                 <Stack>
-                                                                                                    <Typography variant="body2" fontWeight={600}>{nota.outlet.code}</Typography>
-                                                                                                    <Typography variant="caption" color="text.secondary">{nota.outlet.name}</Typography>
+                                                                                                    <Typography variant="body2" fontWeight={600}>{nota.outlet.name}</Typography>
+                                                                                                    <Typography variant="caption" color="text.secondary">{nota.outlet.code}</Typography>
                                                                                                 </Stack>
                                                                                             ) : `#${nota.outlet_id}`}
                                                                                         </TableCell>
@@ -547,6 +548,28 @@ export default function RekapBeDetail() {
                                                                                         </TableCell>
                                                                                         <TableCell align="center">
                                                                                             <Chip label={nota.status} size="small" color={nota.status === "INVOICED" ? "success" : "warning"} sx={{ fontSize: "0.7rem" }} />
+                                                                                        </TableCell>
+                                                                                        {/* Foto Outlet Tutup */}
+                                                                                        <TableCell align="center">
+                                                                                            {photoUrl ? (
+                                                                                                <Tooltip title="Outlet tutup — klik untuk lihat foto">
+                                                                                                    <Box
+                                                                                                        component="img"
+                                                                                                        src={photoUrl}
+                                                                                                        alt="Foto outlet tutup"
+                                                                                                        sx={{
+                                                                                                            width: 40,
+                                                                                                            height: 40,
+                                                                                                            objectFit: "cover",
+                                                                                                            borderRadius: 1,
+                                                                                                            border: "2px solid",
+                                                                                                            borderColor: "warning.main",
+                                                                                                            cursor: "pointer",
+                                                                                                        }}
+                                                                                                        onClick={() => window.open(photoUrl, "_blank")}
+                                                                                                    />
+                                                                                                </Tooltip>
+                                                                                            ) : null}
                                                                                         </TableCell>
                                                                                         <TableCell align="center">
                                                                                             <Tooltip title="Detail nota">

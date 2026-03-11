@@ -25,7 +25,6 @@ interface SaleItem {
     qty_order: number;
     qty_sold: number;
     qty_returned: number;
-    qty_expired: number;
     price_at_moment: number | string;
     subtotal: number | string;
     item?: { id: number; code: string; name: string };
