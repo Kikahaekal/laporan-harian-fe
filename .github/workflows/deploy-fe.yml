@@ -3,7 +3,7 @@ name: Deploy Frontend ReactJS
 on:
   push:
     branches:
-      - main  # Ubah ke 'master' jika branch utama Anda bernama master
+      - main # Pastikan branch Anda memang 'main'
 
 jobs:
   deploy:
@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🚚 Mengambil kode terbaru
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Sudah diupdate ke v4
 
       - name: ⚙️ Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4 # Sudah diupdate ke v4
         with:
-          node-version: '24.13.0' # Versi Node.js sudah disesuaikan
+          node-version: "24.13.0"
 
       - name: 🔨 Install & Build
         run: |
@@ -29,5 +29,6 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./build/   # PENTING: Jika Anda menggunakan Vite, ubah tulisan 'build' menjadi 'dist'
+          local-dir: ./build/ # PENTING: Jika React Anda dibuat pakai Vite, ubah tulisan ./build/ ini menjadi ./dist/
           server-dir: /public_html/
+          port: 21
