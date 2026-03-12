@@ -28,7 +28,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { useNavigate } from "react-router";
-import api from "../../lib/axios";
+import apiBe from "../../lib/axiosBe";
 
 import {
   DAYS,
@@ -46,21 +46,12 @@ import {
 } from "../data/constant";
 import WeeklySectionByOutlet from "./WeeklySectionByOutlet";
 
-const getCookie = (name: string): string | undefined => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const cookieValue = parts.pop()?.split(";").shift();
-    return cookieValue ? decodeURIComponent(cookieValue) : undefined;
-  }
-};
-
 function DayPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
   return <Box sx={{ mt: 1 }}>{children}</Box>;
 }
 
-export default function Laporan(): JSX.Element {
+export default function Laporan() {
   const navigate = useNavigate();
   const now = new Date();
   const [tab, setTab] = useState<number>(0);
@@ -92,8 +83,8 @@ export default function Laporan(): JSX.Element {
     const fetchMasters = async () => {
       try {
         const [resOutlet, resItem] = await Promise.all([
-          api.get("/api/outlets", { signal: controller.signal }),
-          api.get("/api/items", { signal: controller.signal }),
+          apiBe.get("/api/web/outlets", { signal: controller.signal }),
+          apiBe.get("/api/web/items", { signal: controller.signal }),
         ]);
         setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, name: o.name })));
         setItems(resItem.data.map((i: any) => ({ id: i.id, name: i.name, price: Number(i.price) })));
@@ -111,7 +102,7 @@ export default function Laporan(): JSX.Element {
       setIsLoading(true);
       try {
         const newData = getInitialDataByOutlet();
-        const res = await api.get("/api/sales-reports", { params: { month, year }, signal: controller.signal });
+        const res = await apiBe.get("/api/web/sales-reports", { params: { month, year }, signal: controller.signal });
         const dbRows = res.data as any[];
 
         if (dbRows.length > 0) {
@@ -238,16 +229,9 @@ export default function Laporan(): JSX.Element {
     }
     setIsSaving(true);
     try {
-      let token = getCookie("XSRF-TOKEN");
-      if (!token) {
-        await api.get("/sanctum/csrf-cookie");
-        await new Promise((r) => setTimeout(r, 100));
-        token = getCookie("XSRF-TOKEN");
-      }
-      await api.post(
-        "/api/sales-reports",
-        rows.map((row) => ({ ...row, year, month })),
-        { headers: { "X-XSRF-TOKEN": token || "" } }
+      await apiBe.post(
+        "/api/web/sales-reports",
+        rows.map((row) => ({ ...row, year, month }))
       );
       alert("Berhasil disimpan!");
       setHasExistingData(true);
@@ -267,7 +251,7 @@ export default function Laporan(): JSX.Element {
     setLoadingSummary(true);
     setRekapSummary(null);
     try {
-      const res = await api.get("/api/sales-reports", { params: { month, year } });
+      const res = await apiBe.get("/api/web/sales-reports", { params: { month, year } });
       const rows = (res.data as any[]) || [];
       const outletCodes = new Set(rows.map((r: any) => r.outlet_code ?? r.outlet?.code ?? r.outlet_id ?? "").filter(Boolean));
       const jumlahToko = outletCodes.size;

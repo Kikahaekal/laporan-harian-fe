@@ -20,7 +20,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import FolderIcon from "@mui/icons-material/Folder";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useNavigate } from "react-router"; 
-import api from "../../lib/axios"; 
+import apiBe from "../../lib/axiosBe";
 
 // Pastikan path import ini benar sesuai struktur foldermu
 // Mengambil MONTHS dari folder laporan
@@ -54,7 +54,7 @@ export default function Rekap() {
     const fetchPeriods = async () => {
       try {
         setLoading(true);
-        const response = await api.get("/api/sales-reports/periods");
+        const response = await apiBe.get("/api/web/sales-reports/periods");
         const rawData: PeriodData[] = response.data;
 
         const grouped = rawData.reduce((acc, curr) => {
@@ -95,7 +95,7 @@ export default function Rekap() {
       try {
         const results = await Promise.all(
           periods.map(({ year, month }) =>
-            api.get("/api/sales-reports", { params: { year, month } }).then((res) => ({
+            apiBe.get("/api/web/sales-reports", { params: { year, month } }).then((res) => ({
               year,
               month,
               rows: res.data as { status?: string }[],

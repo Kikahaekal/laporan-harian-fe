@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import api from "../../lib/axios";
+import apiBe from "../../lib/axiosBe";
 
 import {
   DAYS,
@@ -34,14 +34,6 @@ import {
 } from "../data/constant";
 import WeeklySectionByOutlet from "../laporan/WeeklySectionByOutlet";
 
-const getCookie = (name: string) => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const cookieValue = parts.pop()?.split(";").shift();
-    return cookieValue ? decodeURIComponent(cookieValue) : undefined;
-  }
-};
 
 function DayPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
@@ -69,9 +61,9 @@ export default function EditLaporan() {
       setIsLoading(true);
       try {
         const [resOutlet, resItem, resReport] = await Promise.all([
-          api.get("/api/outlets", { signal: controller.signal }),
-          api.get("/api/items", { signal: controller.signal }),
-          api.get("/api/sales-reports", { params: { month: queryMonth, year: queryYear }, signal: controller.signal }),
+          apiBe.get("/api/web/outlets", { signal: controller.signal }),
+          apiBe.get("/api/web/items", { signal: controller.signal }),
+          apiBe.get("/api/web/sales-reports", { params: { month: queryMonth, year: queryYear }, signal: controller.signal }),
         ]);
         setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, name: o.name })));
         setItems(resItem.data.map((i: any) => ({ id: i.id, name: i.name, price: Number(i.price) })));
@@ -179,13 +171,7 @@ export default function EditLaporan() {
     if (!confirm("Yakin memperbarui laporan ini? Data lama bulan ini akan ditimpa.")) return;
     setIsSaving(true);
     try {
-      let token = getCookie("XSRF-TOKEN");
-      if (!token) {
-        await api.get("/sanctum/csrf-cookie");
-        await new Promise((r) => setTimeout(r, 100));
-        token = getCookie("XSRF-TOKEN");
-      }
-      await api.post("/api/sales-reports/update", payload, { headers: { "X-XSRF-TOKEN": token || "" } });
+      await apiBe.post("/api/web/sales-reports/update", payload);
       alert("Laporan berhasil diperbarui!");
       navigate("/rekap");
     } catch (error: any) {

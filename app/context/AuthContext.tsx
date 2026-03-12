@@ -5,7 +5,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import api from "../lib/axios";
+import apiBe, { refreshCsrf } from "../lib/axiosBe";
 import { useNavigate } from "react-router";
 
 interface User {
@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const { data } = await api.get("/api/web/user");
+        const { data } = await apiBe.get("/api/web/user");
         setUser(data);
       } catch {
         setUser(null);
@@ -47,13 +47,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (payload: any) => {
     try {
       // Ambil CSRF cookie dulu sebelum login (wajib untuk Sanctum session-based auth)
-      await api.get("/sanctum/csrf-cookie");
+      await refreshCsrf();
 
       // Login via web route (session-based)
-      await api.post("/login", payload);
+      await apiBe.post("/login", payload);
+
+      // Setelah login, Laravel me-regenerate session dan XSRF-TOKEN di server.
+      // Kita harus refresh cookie SEKALI LAGI agar axios punya token baru sebelum memanggil api get user.
+      await refreshCsrf();
 
       // Fetch user yang sedang login
-      const { data } = await api.get("/api/web/user");
+      const { data } = await apiBe.get("/api/web/user");
       setUser(data);
       navigate("/");
     } catch (error) {
@@ -64,7 +68,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      await api.post("/api/web/logout");
+      // Pastikan punya CSRF fresh sebelum logout
+      await refreshCsrf();
+      await apiBe.post("/api/web/logout");
       setUser(null);
       navigate("/login");
     } catch (error) {
