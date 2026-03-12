@@ -5,8 +5,12 @@ const api = axios.create({
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
     },
     withCredentials: true,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
-export default api;
+export default api;
+

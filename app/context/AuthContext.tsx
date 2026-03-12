@@ -25,15 +25,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const getCookie = (name: string) => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const cookieValue = parts.pop()?.split(";").shift();
-    return cookieValue ? decodeURIComponent(cookieValue) : undefined;
-  }
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const { data } = await api.get("/api/user");
         setUser(data);
-      } catch (error) {
+      } catch {
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -55,24 +46,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (payload: any) => {
     try {
-      // Ambil CSRF token dari Sanctum
+      // Step 1: Ambil CSRF cookie — Axios otomatis baca & kirim di request berikutnya
       await api.get("/sanctum/csrf-cookie");
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Step 2: Login via web route — Axios otomatis sisipkan X-XSRF-TOKEN header
+      await api.post("/login", payload);
 
-      const token = getCookie("XSRF-TOKEN");
-
-      if (!token) {
-        throw new Error("CSRF token not found");
-      }
-
-      // Login via web route (bukan /api/login)
-      await api.post("/login", payload, {
-        headers: {
-          "X-XSRF-TOKEN": token,
-        },
-      });
-
+      // Step 3: Fetch user yang sedang login
       const { data } = await api.get("/api/user");
       setUser(data);
       navigate("/");
@@ -84,23 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      let token = getCookie("XSRF-TOKEN");
-      if (!token) {
-        await api.get("/sanctum/csrf-cookie");
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        token = getCookie("XSRF-TOKEN");
-      }
-
-      await api.post(
-        "/logout",
-        {},
-        {
-          headers: {
-            "X-XSRF-TOKEN": token || "",
-          },
-        },
-      );
-
+      await api.post("/logout");
       setUser(null);
       navigate("/login");
     } catch (error) {
