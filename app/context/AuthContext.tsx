@@ -55,9 +55,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (payload: any) => {
     try {
+      // Ambil CSRF token dari Sanctum
       await api.get("/sanctum/csrf-cookie");
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       const token = getCookie("XSRF-TOKEN");
 
@@ -65,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("CSRF token not found");
       }
 
+      // Login via web route (bukan /api/login)
       await api.post("/login", payload, {
         headers: {
           "X-XSRF-TOKEN": token,
@@ -85,7 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let token = getCookie("XSRF-TOKEN");
       if (!token) {
         await api.get("/sanctum/csrf-cookie");
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         token = getCookie("XSRF-TOKEN");
       }
 
