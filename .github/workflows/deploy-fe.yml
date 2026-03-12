@@ -30,7 +30,7 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./build/ # PENTING: Jika React Anda dibuat pakai Vite, ubah tulisan ./build/ ini menjadi ./dist/
-          server-dir: /public_html/
+          server-dir: /
           port: 21
           protocol: ftp
           security: loose # perubahan
