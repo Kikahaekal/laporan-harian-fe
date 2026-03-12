@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Axios instance untuk laporan-be API (prefix: /api/web/)
 const apiBe = axios.create({
-    baseURL: 'http://localhost:8000',
+    baseURL: 'https://api.pinangmajusejahtera.my.id',
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json',
