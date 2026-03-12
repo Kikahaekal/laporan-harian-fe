@@ -33,4 +33,4 @@ jobs:
           server-dir: /public_html/
           port: 21
           protocol: ftp
-          security: loose
+          security: loose # perubahan
