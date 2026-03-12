@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkUser = async () => {
       try {
-        const { data } = await api.get("/api/user");
+        const { data } = await api.get("/api/web/user");
         setUser(data);
       } catch {
         setUser(null);
@@ -46,14 +46,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (payload: any) => {
     try {
-      // Step 1: Ambil CSRF cookie — Axios otomatis baca & kirim di request berikutnya
+      // Ambil CSRF cookie dulu sebelum login (wajib untuk Sanctum session-based auth)
       await api.get("/sanctum/csrf-cookie");
 
-      // Step 2: Login via web route — Axios otomatis sisipkan X-XSRF-TOKEN header
+      // Login via web route (session-based)
       await api.post("/login", payload);
 
-      // Step 3: Fetch user yang sedang login
-      const { data } = await api.get("/api/user");
+      // Fetch user yang sedang login
+      const { data } = await api.get("/api/web/user");
       setUser(data);
       navigate("/");
     } catch (error) {
@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      await api.post("/logout");
+      await api.post("/api/web/logout");
       setUser(null);
       navigate("/login");
     } catch (error) {
