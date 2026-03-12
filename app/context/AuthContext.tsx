@@ -12,6 +12,7 @@ interface User {
   id: number;
   name: string;
   email: string;
+  role: string;
 }
 
 interface AuthContextType {
@@ -19,6 +20,7 @@ interface AuthContextType {
   login: (payload: any) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -54,21 +56,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (payload: any) => {
     try {
       await api.get("/sanctum/csrf-cookie");
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const token = getCookie("XSRF-TOKEN");
-      
+
       if (!token) {
         throw new Error("CSRF token not found");
       }
-      
+
       await api.post("/login", payload, {
         headers: {
           "X-XSRF-TOKEN": token,
         },
       });
-      
+
       const { data } = await api.get("/api/user");
       setUser(data);
       navigate("/");
@@ -83,16 +85,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let token = getCookie("XSRF-TOKEN");
       if (!token) {
         await api.get("/sanctum/csrf-cookie");
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         token = getCookie("XSRF-TOKEN");
       }
-      
-      await api.post("/logout", {}, {
-        headers: {
-          "X-XSRF-TOKEN": token || "",
+
+      await api.post(
+        "/logout",
+        {},
+        {
+          headers: {
+            "X-XSRF-TOKEN": token || "",
+          },
         },
-      });
-      
+      );
+
       setUser(null);
       navigate("/login");
     } catch (error) {
@@ -103,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, isAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );

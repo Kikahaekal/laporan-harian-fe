@@ -5,282 +5,446 @@ import {
   Tab,
   Typography,
   TextField,
+  FormControl,
+  InputLabel,
   Select,
   MenuItem,
-  Grid,
   Paper,
   Button,
   Stack,
   CircularProgress,
-  Alert
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Table,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHead,
+  TableContainer,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle"; // Icon baru opsional
-import api from "../../lib/axios"; 
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import SummarizeIcon from "@mui/icons-material/Summarize";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { useNavigate } from "react-router";
+import api from "../../lib/axios";
 
-import { DAYS, MONTHS, getInitialData, type RowType, type DataMap, EMPTY_ROW } from "../data/constant";
-import WeeklySection from "./WeeklySection";
+import {
+  DAYS,
+  MONTHS,
+  getInitialDataByOutlet,
+  groupRowsByOutlet,
+  flattenOutletDataToRows,
+  type DataMapByOutlet,
+  type OutletMaster,
+  type ItemMaster,
+  type DailyReportPayload,
+  type ItemRow,
+  type ReportStatus,
+  EMPTY_ITEM_ROW,
+} from "../data/constant";
+import WeeklySectionByOutlet from "./WeeklySectionByOutlet";
+
+const getCookie = (name: string): string | undefined => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    const cookieValue = parts.pop()?.split(";").shift();
+    return cookieValue ? decodeURIComponent(cookieValue) : undefined;
+  }
+};
 
 function DayPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
-  return <Box sx={{ mt: 2 }}>{children}</Box>;
+  return <Box sx={{ mt: 1 }}>{children}</Box>;
 }
 
 export default function Laporan(): JSX.Element {
+  const navigate = useNavigate();
   const now = new Date();
-
-  // STATE UI
   const [tab, setTab] = useState<number>(0);
   const [month, setMonth] = useState<number>(now.getMonth() + 1);
   const [year, setYear] = useState<number>(now.getFullYear());
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false); // Tambahan state saving
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [hasExistingData, setHasExistingData] = useState<boolean>(false);
+  const [rekapDone, setRekapDone] = useState<boolean>(false);
+  const [rekapDialogOpen, setRekapDialogOpen] = useState<boolean>(false);
+  const [rekapSummary, setRekapSummary] = useState<{
+    jumlahToko: number;
+    totalDroping: number;
+    targetToko: number;
+    targetDro: number;
+    kekuranganToko: number;
+    kekuranganDro: number;
+  } | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+  const [data, setData] = useState<DataMapByOutlet>(() => getInitialDataByOutlet());
+  const [outlets, setOutlets] = useState<OutletMaster[]>([]);
+  const [items, setItems] = useState<ItemMaster[]>([]);
 
-  // STATE LOGIC
-  const [hasExistingData, setHasExistingData] = useState<boolean>(false); // <--- STATE BARU
+  const DEFAULT_TARGET_TOKO = 50;
+  const DEFAULT_TARGET_DRO = 2000;
 
-  // STATE DATA
-  const [data, setData] = useState<DataMap>(() => getInitialData());
-  const [outlets, setOutlets] = useState<{ id: string; name: string }[]>([]);
-  const [items, setItems] = useState<{ id: string; name: string; price?: number }[]>([]);
-
-  // 1. FETCH MASTER DATA (Sekali saat load)
   useEffect(() => {
     const controller = new AbortController();
     const fetchMasters = async () => {
       try {
         const [resOutlet, resItem] = await Promise.all([
-          api.get('/api/outlets', { signal: controller.signal }),
-          api.get('/api/items', { signal: controller.signal })
+          api.get("/api/outlets", { signal: controller.signal }),
+          api.get("/api/items", { signal: controller.signal }),
         ]);
-        setOutlets(resOutlet.data.map((o: any) => ({ id: o.code, name: o.name })));
-        setItems(resItem.data.map((i: any) => ({ id: i.code, name: i.name, price: Number(i.price) })));
+        setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, name: o.name })));
+        setItems(resItem.data.map((i: any) => ({ id: i.id, name: i.name, price: Number(i.price) })));
       } catch (err: any) {
-        if (err.name !== 'CanceledError') console.error("Gagal load master data", err);
+        if (err.name !== "CanceledError") console.error("Gagal load master data", err);
       }
     };
     fetchMasters();
     return () => controller.abort();
   }, []);
 
-  // 2. FETCH REPORT DATA (Setiap ganti Bulan/Tahun)
   useEffect(() => {
     const controller = new AbortController();
-    
     const fetchReport = async () => {
-        setIsLoading(true);
-        try {
-            // Reset ke kosong dulu
-            const newData = getInitialData();
-            
-            const res = await api.get('/api/sales-reports', {
-                params: { month, year },
-                signal: controller.signal
+      setIsLoading(true);
+      try {
+        const newData = getInitialDataByOutlet();
+        const res = await api.get("/api/sales-reports", { params: { month, year }, signal: controller.signal });
+        const dbRows = res.data as any[];
+
+        if (dbRows.length > 0) {
+          setHasExistingData(true);
+          const allNonPending = dbRows.every((r: any) => (r.status || "pending") !== "pending");
+          setRekapDone(allNonPending);
+          DAYS.forEach((dayName) => {
+            [1, 2, 3, 4].forEach((weekNum) => {
+              const rowsForDayWeek = dbRows.filter(
+                (r: any) => {
+                  const d = (r.day_name || "").charAt(0).toUpperCase() + (r.day_name || "").slice(1).toLowerCase();
+                  return d === dayName && r.week === weekNum;
+                }
+              );
+              if (rowsForDayWeek.length > 0) {
+                newData[dayName][weekNum] = groupRowsByOutlet(rowsForDayWeek);
+              }
             });
-
-            const dbRows = res.data;
-
-            // LOGIC UTAMA: Cek ketersediaan data
-            if (dbRows.length > 0) {
-                setHasExistingData(true); // Disable tombol
-                
-                // --- Mapping Data DB ke Tabel UI (Read Only Mode) ---
-                dbRows.forEach((row: any) => {
-                    const dayNameRaw = row.day_name || "";
-                    // Pastikan format Title Case: "senin" -> "Senin"
-                    const dayName = dayNameRaw.charAt(0).toUpperCase() + dayNameRaw.slice(1).toLowerCase();
-                    const weekNum = row.week;
-
-                    if (newData[dayName] && newData[dayName][weekNum]) {
-                         const currentRows = newData[dayName][weekNum];
-                         // Hapus row kosong default jika ada data masuk
-                         if (currentRows.length === 1 && currentRows[0].outlet_id === "") {
-                             newData[dayName][weekNum] = [];
-                         }
-
-                         newData[dayName][weekNum].push({
-                            outlet_id: row.outlet_code,
-                            item_id: row.item_code,
-                            qty_order: String(row.qty_order),
-                            qty_sold: String(row.qty_sold),
-                            deposit: String(row.deposit),
-                         });
-                    }
-                });
-
-            } else {
-                setHasExistingData(false); // Enable tombol
-            }
-
-            setData(newData);
-
-        } catch (err: any) {
-            if (err.name !== 'CanceledError') console.error("Error fetch laporan", err);
-        } finally {
-            setIsLoading(false);
+          });
+        } else {
+          setHasExistingData(false);
+          setRekapDone(false);
         }
-    }
-
+        setData(newData);
+      } catch (err: any) {
+        if (err.name !== "CanceledError") console.error("Error fetch laporan", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchReport();
     return () => controller.abort();
   }, [month, year]);
 
-  // ================= HANDLERS =================
-
-  const handleChangeCell = (day: string, week: number, idx: number, field: keyof RowType, value: string) => {
-    // Opsional: Cegah edit jika data sudah ada (Double protection)
-    if (hasExistingData) return; 
-
-    setData((prev) => {
-      const copy = { ...prev };
-      copy[day] = { ...copy[day] }; 
-      copy[day][week] = [...copy[day][week]]; 
-      copy[day][week][idx] = { ...copy[day][week][idx], [field]: value };
-      
-      // Auto hitung deposit jika item & sold diisi
-      if (field === 'qty_sold' || field === 'item_id') {
-          const row = copy[day][week][idx];
-          const item = items.find(i => i.id === row.item_id);
-          if (item && row.qty_sold) {
-              row.deposit = String(item.price! * Number(row.qty_sold));
-          }
-      }
-      return copy;
-    });
-  };
-
-  const addRow = (day: string, week: number) => {
-    if (hasExistingData) return;
+  const updateGroups = (day: string, week: number, updater: (groups: typeof data[string][number]) => typeof data[string][number]) => {
     setData((prev) => ({
       ...prev,
-      [day]: { ...prev[day], [week]: [...prev[day][week], { ...EMPTY_ROW }] },
+      [day]: { ...prev[day], [week]: updater(prev[day][week]) },
     }));
   };
 
-  const deleteRow = (day: string, week: number, idx: number) => {
+  const handleOutletChange = (day: string, week: number, groupIdx: number, outlet_id: string) => {
     if (hasExistingData) return;
-    setData((prev) => {
-      const currentRows = prev[day][week];
-      let newRows = currentRows.filter((_, i) => i !== idx);
-      if (newRows.length === 0) newRows = [{ ...EMPTY_ROW }];
-      return { ...prev, [day]: { ...prev[day], [week]: newRows } };
+    updateGroups(day, week, (groups) => {
+      const next = [...groups];
+      next[groupIdx] = { ...next[groupIdx], outlet_id };
+      return next;
+    });
+  };
+
+  const handleStatusChange = (day: string, week: number, groupIdx: number, status: ReportStatus) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => {
+      const next = [...groups];
+      next[groupIdx] = { ...next[groupIdx], status };
+      return next;
+    });
+  };
+
+  const handleItemChange = (day: string, week: number, groupIdx: number, itemIdx: number, field: keyof ItemRow, value: string) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => {
+      const next = groups.map((g, i) => {
+        if (i !== groupIdx) return g;
+        const newItems = g.items.map((it, j) => (j === itemIdx ? { ...it, [field]: value } : it));
+        if (field === "qty_sold" || field === "item_id") {
+          const row = newItems[itemIdx];
+          const item = items.find((m) => String(m.id) === row.item_id);
+          if (item?.price != null && row.qty_sold) newItems[itemIdx] = { ...row, deposit: String(item.price * Number(row.qty_sold)) };
+        }
+        return { ...g, items: newItems };
+      });
+      return next;
+    });
+  };
+
+  const handleAddItem = (day: string, week: number, groupIdx: number) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => {
+      const next = groups.map((g, i) => (i === groupIdx ? { ...g, items: [...g.items, { ...EMPTY_ITEM_ROW }] } : g));
+      return next;
+    });
+  };
+
+  const handleRemoveItem = (day: string, week: number, groupIdx: number, itemIdx: number) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => {
+      const next = groups.map((g, i) => {
+        if (i !== groupIdx) return g;
+        const newItems = g.items.filter((_, j) => j !== itemIdx);
+        return { ...g, items: newItems.length ? newItems : [{ ...EMPTY_ITEM_ROW }] };
+      });
+      return next;
+    });
+  };
+
+  const handleAddOutlet = (day: string, week: number) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => [...groups, { outlet_id: "", items: [{ ...EMPTY_ITEM_ROW }] }]);
+  };
+
+  const handleRemoveOutlet = (day: string, week: number, groupIdx: number) => {
+    if (hasExistingData) return;
+    updateGroups(day, week, (groups) => {
+      const next = groups.filter((_, i) => i !== groupIdx);
+      return next.length ? next : [{ outlet_id: "", items: [{ ...EMPTY_ITEM_ROW }] }];
     });
   };
 
   const handleSubmit = async () => {
     if (hasExistingData) {
-        alert("Data bulan ini sudah diisi. Silakan ke menu Rekap untuk mengedit.");
-        return;
+      alert("Data bulan ini sudah diisi. Silakan ke menu Rekap untuk mengedit.");
+      return;
     }
-
-    const payload: any[] = [];
+    const rows: DailyReportPayload["rows"] = [];
     DAYS.forEach((day) => {
-      Object.entries(data[day]).forEach(([weekStr, rows]) => {
-        const week = Number(weekStr);
-        rows.forEach((r) => {
-          if (!r.outlet_id && !r.item_id && !r.qty_order) return;
-          payload.push({
-            day_name: day.toLowerCase(),
-            week, month, year,
-            outlet_id: r.outlet_id,
-            item_id: r.item_id,
-            qty_order: Number(r.qty_order || 0),
-            qty_sold: Number(r.qty_sold || 0),
-            deposit: Number(r.deposit || 0),
-          });
-        });
+      [1, 2, 3, 4].forEach((week) => {
+        flattenOutletDataToRows(data, day, week).forEach((row) => rows.push(row));
       });
     });
-
-    if (payload.length === 0) {
-        alert("Tidak ada data untuk disimpan.");
-        return;
+    if (rows.length === 0) {
+      alert("Tidak ada data untuk disimpan.");
+      return;
     }
-
     setIsSaving(true);
     try {
-      await api.get('/sanctum/csrf-cookie');
-      await api.post('/api/sales-reports', payload);
+      let token = getCookie("XSRF-TOKEN");
+      if (!token) {
+        await api.get("/sanctum/csrf-cookie");
+        await new Promise((r) => setTimeout(r, 100));
+        token = getCookie("XSRF-TOKEN");
+      }
+      await api.post(
+        "/api/sales-reports",
+        rows.map((row) => ({ ...row, year, month })),
+        { headers: { "X-XSRF-TOKEN": token || "" } }
+      );
       alert("Berhasil disimpan!");
-      
-      // Refresh status agar tombol jadi disabled setelah simpan sukses
-      setHasExistingData(true); 
-      
+      setHasExistingData(true);
     } catch (error: any) {
-      const msg = error.response?.data?.message || "Gagal simpan";
-      alert("Error: " + msg);
+      alert("Error: " + (error.response?.data?.message || "Gagal simpan"));
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleRekap = () => {
+    navigate(`/edit?year=${year}&month=${month}`);
+  };
+
+  const handleOpenRekapPenjualan = async () => {
+    setRekapDialogOpen(true);
+    setLoadingSummary(true);
+    setRekapSummary(null);
+    try {
+      const res = await api.get("/api/sales-reports", { params: { month, year } });
+      const rows = (res.data as any[]) || [];
+      const outletCodes = new Set(rows.map((r: any) => r.outlet_code ?? r.outlet?.code ?? r.outlet_id ?? "").filter(Boolean));
+      const jumlahToko = outletCodes.size;
+      const totalDroping = rows.reduce((sum: number, r: any) => sum + (Number(r.deposit) || 0), 0);
+      const targetToko = DEFAULT_TARGET_TOKO;
+      const targetDro = DEFAULT_TARGET_DRO;
+      const kekuranganToko = Math.max(0, targetToko - jumlahToko);
+      const kekuranganDro = Math.max(0, targetDro - totalDroping);
+      setRekapSummary({
+        jumlahToko,
+        totalDroping: Math.round(totalDroping),
+        targetToko,
+        targetDro,
+        kekuranganToko,
+        kekuranganDro,
+      });
+    } catch (err) {
+      console.error("Gagal load rekap penjualan", err);
+      setRekapSummary(null);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  const buttonsDisabled = rekapDone;
+
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, margin: "0 auto" }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" fontWeight="bold">Input Laporan Penjualan</Typography>
-        
-        {/* BUTTON DENGAN LOGIC DISABLE */}
-        <Button 
-          variant="contained" 
-          color={hasExistingData ? "inherit" : "primary"} // Warna abu-abu jika disabled
-          size="large" 
-          startIcon={hasExistingData ? <CheckCircleIcon color="success"/> : (isSaving ? <CircularProgress size={20}/> : <SaveIcon />)}
-          onClick={handleSubmit}
-          disabled={isLoading || isSaving || hasExistingData} // <--- Disable di sini
-          sx={{ 
-            opacity: hasExistingData ? 0.7 : 1,
-            pointerEvents: hasExistingData ? 'none' : 'auto'
-          }}
-        >
-           {isLoading ? "Memuat..." : (hasExistingData ? "Laporan Sudah Diisi" : (isSaving ? "Menyimpan..." : "Simpan Laporan"))}
-        </Button>
+    <Box sx={{ p: 2, maxWidth: 1000, margin: "0 auto" }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
+        <Typography variant="h6" fontWeight="bold">Input Laporan Penjualan</Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+          <Button
+            variant="contained"
+            color={hasExistingData ? "inherit" : "primary"}
+            size="medium"
+            startIcon={hasExistingData ? <CheckCircleIcon color="success" /> : isSaving ? <CircularProgress size={18} /> : <SaveIcon />}
+            onClick={handleSubmit}
+            disabled={isLoading || isSaving || hasExistingData || buttonsDisabled}
+            sx={{ opacity: hasExistingData || buttonsDisabled ? 0.7 : 1, pointerEvents: hasExistingData || buttonsDisabled ? "none" : "auto" }}
+          >
+            {isLoading ? "Memuat..." : hasExistingData ? "Sudah Diisi" : isSaving ? "Menyimpan..." : "Simpan Laporan"}
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            size="medium"
+            startIcon={<SummarizeIcon />}
+            onClick={handleRekap}
+            disabled={isLoading || buttonsDisabled}
+          >
+            Rekap
+          </Button>
+          <Button
+            variant="outlined"
+            size="medium"
+            startIcon={<VisibilityIcon />}
+            onClick={handleOpenRekapPenjualan}
+            disabled={isLoading || !hasExistingData}
+          >
+            Lihat Rekap Penjualan
+          </Button>
+        </Stack>
       </Stack>
 
-      <Paper sx={{ p: 2, mb: 3 }} elevation={2}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
-            <Select fullWidth size="small" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-              {MONTHS.map((namaBulan, i) => <MenuItem key={i} value={i + 1}>{namaBulan}</MenuItem>)}
-            </Select>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <TextField fullWidth size="small" type="number" label="Tahun" value={year} onChange={(e) => setYear(Number(e.target.value))} />
-          </Grid>
-          {/* Info Status Text Tambahan */}
-          {hasExistingData && (
-              <Grid item xs={12} md={6} sx={{display:'flex', alignItems:'center'}}>
-                  <Typography color="error" variant="body2" fontWeight="bold">
-                      * Data untuk periode ini sudah terkunci.
-                  </Typography>
-              </Grid>
+      {/* Dialog Rekap Penjualan Bulanan */}
+      <Dialog open={rekapDialogOpen} onClose={() => setRekapDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Rekap Penjualan — {MONTHS[month - 1]} {year}
+        </DialogTitle>
+        <DialogContent>
+          {loadingSummary && (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress />
+            </Box>
           )}
-        </Grid>
+          {!loadingSummary && rekapSummary && (
+            <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+              <Table size="small" sx={{ "& td, & th": { border: "1px solid", borderColor: "divider" } }}>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={{ bgcolor: "warning.light", fontWeight: 700, width: "50%" }}>Jumlah toko</TableCell>
+                    <TableCell colSpan={2} sx={{ bgcolor: "warning.light", fontWeight: 700 }}>Total droping</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ bgcolor: "error.light", color: "error.contrastText", fontWeight: 700, fontSize: "1.1rem" }}>
+                      {rekapSummary.jumlahToko}
+                    </TableCell>
+                    <TableCell colSpan={2} sx={{ bgcolor: "info.light", color: "info.contrastText", fontWeight: 700, fontSize: "1.1rem" }}>
+                      {rekapSummary.totalDroping.toLocaleString("id-ID")}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ bgcolor: "grey.200", fontWeight: 700 }}>TARGET TOKO</TableCell>
+                    <TableCell sx={{ bgcolor: "grey.200", fontWeight: 700 }}>PENCAPAIAN</TableCell>
+                    <TableCell sx={{ bgcolor: "grey.200", fontWeight: 700 }}>TARGET DRO</TableCell>
+                    <TableCell sx={{ bgcolor: "grey.200", fontWeight: 700 }}>PENCAPAIAN</TableCell>
+                    <TableCell sx={{ bgcolor: "grey.200", fontWeight: 700 }}>KEKURANGAN</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>{rekapSummary.targetToko}</TableCell>
+                    <TableCell>{rekapSummary.jumlahToko}</TableCell>
+                    <TableCell>{rekapSummary.targetDro.toLocaleString("id-ID")}</TableCell>
+                    <TableCell>{rekapSummary.totalDroping.toLocaleString("id-ID")}</TableCell>
+                    <TableCell sx={{ bgcolor: rekapSummary.kekuranganDro > 0 ? "error.light" : "transparent", color: rekapSummary.kekuranganDro > 0 ? "error.contrastText" : "inherit", fontWeight: 600 }}>
+                      {rekapSummary.kekuranganDro > 0 ? rekapSummary.kekuranganDro.toLocaleString("id-ID") : "—"}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+          {!loadingSummary && !rekapSummary && rekapDialogOpen && (
+            <Typography color="text.secondary">Tidak ada data rekap untuk periode ini.</Typography>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+        <Typography variant="caption" color="text.secondary" fontWeight={600} display="block" gutterBottom>Periode</Typography>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+          <FormControl size="small" variant="outlined" sx={{ minWidth: 140 }}>
+            <InputLabel>Bulan</InputLabel>
+            <Select label="Bulan" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {MONTHS.map((nama, i) => (
+                <MenuItem key={i} value={i + 1}>{nama}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField size="small" variant="outlined" label="Tahun" type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} sx={{ width: 100 }} inputProps={{ min: 2020, max: 2100 }} />
+          {rekapDone && (
+            <Typography color="error" variant="caption" fontWeight="bold">Periode ini sudah direkap. Tombol Simpan dan Rekap dinonaktifkan.</Typography>
+          )}
+          {hasExistingData && !rekapDone && (
+            <Typography color="error" variant="caption" fontWeight="bold">Data periode ini terkunci. Edit via Rekap.</Typography>
+          )}
+        </Stack>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+          Satu outlet bisa berisi banyak item. Tambah outlet/item per hari (tab) dan per minggu.
+        </Typography>
       </Paper>
 
-      {/* Sisa UI (Tabs & WeeklySection) sama seperti sebelumnya... */}
-      <Paper elevation={1} sx={{ bgcolor: 'background.paper' }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          {DAYS.map((d) => <Tab key={d} label={d} sx={{ fontWeight: 'bold' }} />)}
+      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: "divider", minHeight: 40 }}>
+          {DAYS.map((d) => (
+            <Tab key={d} label={d} sx={{ fontWeight: 600, minHeight: 40, py: 1 }} />
+          ))}
         </Tabs>
-
-        <Box sx={{ p: 2, bgcolor: '#fafafa', minHeight: '500px' }}>
-            {isLoading && <Box sx={{textAlign:'center', p:4}}><CircularProgress/></Box>}
-            
-            {!isLoading && DAYS.map((day, dayIdx) => (
-            <DayPanel key={day} value={tab} index={dayIdx}>
+        <Box sx={{ p: 1.5, bgcolor: "grey.50", minHeight: 360 }}>
+          {isLoading && (
+            <Box sx={{ textAlign: "center", py: 4 }}>
+              <CircularProgress />
+            </Box>
+          )}
+          {!isLoading &&
+            DAYS.map((day, dayIdx) => (
+              <DayPanel key={day} value={tab} index={dayIdx}>
                 {[1, 2, 3, 4].map((week) => (
-                <WeeklySection
+                  <WeeklySectionByOutlet
                     key={week}
                     week={week}
-                    rows={data[day][week]}
+                    dayName={day}
+                    year={year}
+                    month={month}
+                    groups={data[day][week]}
                     masterOutlets={outlets}
                     masterItems={items}
-                    onAddRow={() => addRow(day, week)}
-                    onDeleteRow={(idx) => deleteRow(day, week, idx)}
-                    onUpdateRow={(idx, field, val) => handleChangeCell(day, week, idx, field, val)}
-                />
+                    readOnly={hasExistingData}
+                    onOutletChange={(gIdx, v) => handleOutletChange(day, week, gIdx, v)}
+                    onStatusChange={(gIdx, status) => handleStatusChange(day, week, gIdx, status)}
+                    onItemChange={(gIdx, iIdx, field, v) => handleItemChange(day, week, gIdx, iIdx, field, v)}
+                    onAddItem={(gIdx) => handleAddItem(day, week, gIdx)}
+                    onRemoveItem={(gIdx, iIdx) => handleRemoveItem(day, week, gIdx, iIdx)}
+                    onAddOutlet={() => handleAddOutlet(day, week)}
+                    onRemoveOutlet={(gIdx) => handleRemoveOutlet(day, week, gIdx)}
+                  />
                 ))}
-            </DayPanel>
+              </DayPanel>
             ))}
         </Box>
       </Paper>
