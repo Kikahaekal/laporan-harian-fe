@@ -1,0 +1,33 @@
+name: Deploy Frontend ReactJS
+
+on:
+  push:
+    branches:
+      - main  # Ubah ke 'master' jika branch utama Anda bernama master
+
+jobs:
+  deploy:
+    name: 🎉 Build & Deploy Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Mengambil kode terbaru
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '24.13.0' # Versi Node.js sudah disesuaikan
+
+      - name: 🔨 Install & Build
+        run: |
+          npm install
+          npm run build
+
+      - name: 📂 Upload ke Rumahweb via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./build/   # PENTING: Jika Anda menggunakan Vite, ubah tulisan 'build' menjadi 'dist'
+          server-dir: /public_html/
