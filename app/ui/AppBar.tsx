@@ -10,7 +10,7 @@ import {
   Dashboard as DashboardIcon,
   Assessment as LaporanIcon,
   BarChart as KanvasIcon,
-  ReceiptLong as MonitoringIcon,
+
   Person as PersonIcon,
   Logout as LogoutIcon,
   Category as CategoryIcon,

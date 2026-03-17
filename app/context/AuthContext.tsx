@@ -50,15 +50,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await refreshCsrf();
 
       // Login via web route (session-based)
-      await apiBe.post("/login", payload);
-
-      // Setelah login, Laravel me-regenerate session dan XSRF-TOKEN di server.
-      // Kita harus refresh cookie SEKALI LAGI agar axios punya token baru sebelum memanggil api get user.
-      await refreshCsrf();
-
-      // Fetch user yang sedang login
-      const { data } = await apiBe.get("/api/web/user");
-      setUser(data);
+      const { data } = await apiBe.post("/login", payload);
+      setUser(data?.user ?? null);
       navigate("/");
     } catch (error) {
       console.error("Login error:", error);

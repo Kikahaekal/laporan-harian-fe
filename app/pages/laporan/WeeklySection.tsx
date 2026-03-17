@@ -15,7 +15,7 @@ import {
   Stack,
   Chip,
   Divider,
-  Grid,
+  Box,
   Button,
   MenuItem,
 } from "@mui/material";
@@ -89,7 +89,7 @@ export default function WeeklySection({
 
                 return (
                   <TableRow key={idx} hover sx={{ "&:nth-of-type(even)": { bgcolor: "action.hover" } }}>
-                    <TableCell padding="dense">
+                    <TableCell>
                       <TextField
                         select
                         size="small"
@@ -106,7 +106,7 @@ export default function WeeklySection({
                         ))}
                       </TextField>
                     </TableCell>
-                    <TableCell padding="dense">
+                    <TableCell>
                       <TextField
                         select
                         size="small"
@@ -123,7 +123,7 @@ export default function WeeklySection({
                         ))}
                       </TextField>
                     </TableCell>
-                    <TableCell padding="dense" align="center">
+                    <TableCell align="center">
                       <TextField
                         size="small"
                         variant="outlined"
@@ -135,7 +135,7 @@ export default function WeeklySection({
                         sx={{ "& .MuiInputBase-root": { backgroundColor: "background.paper" } }}
                       />
                     </TableCell>
-                    <TableCell padding="dense" align="center">
+                    <TableCell align="center">
                       <TextField
                         size="small"
                         variant="outlined"
@@ -147,7 +147,7 @@ export default function WeeklySection({
                         sx={{ "& .MuiInputBase-root": { backgroundColor: "background.paper" } }}
                       />
                     </TableCell>
-                    <TableCell align="center" padding="dense">
+                    <TableCell align="center">
                       <Typography
                         variant="body2"
                         color={sisa !== 0 ? "error.main" : "text.secondary"}
@@ -156,7 +156,7 @@ export default function WeeklySection({
                         {sisa}
                       </Typography>
                     </TableCell>
-                    <TableCell padding="dense" align="right">
+                    <TableCell align="right">
                       <TextField
                         size="small"
                         variant="outlined"
@@ -169,7 +169,7 @@ export default function WeeklySection({
                       />
                     </TableCell>
 
-                    <TableCell padding="dense">
+                    <TableCell>
                       {row.status ? (
                         <Chip
                           size="small"
@@ -181,7 +181,7 @@ export default function WeeklySection({
                         <Typography variant="body2" color="text.secondary">Baru</Typography>
                       )}
                     </TableCell>
-                    <TableCell align="center" padding="dense">
+                    <TableCell align="center">
                       <IconButton size="small" onClick={() => onDeleteRow(idx)} color="error" aria-label="Hapus baris">
                         <DeleteIcon fontSize="small" />
                       </IconButton>
@@ -195,21 +195,21 @@ export default function WeeklySection({
 
         <Divider sx={{ my: 2 }} />
 
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={8}>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          <Box sx={{ flex: "1 1 480px" }}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2} flexWrap="wrap">
               <TextField label="Total Order" value={totals.qty_order} size="small" InputProps={{ readOnly: true }} variant="outlined" sx={{ minWidth: 100 }} />
               <TextField label="Total Sold" value={totals.qty_sold} size="small" InputProps={{ readOnly: true }} variant="outlined" sx={{ minWidth: 100 }} />
               <TextField label="Total Sisa" value={totals.qty_remaining} size="small" InputProps={{ readOnly: true }} variant="outlined" error={totals.qty_remaining > 0} sx={{ minWidth: 100 }} />
               <TextField label="Total Deposit" value={totals.deposit} size="small" InputProps={{ readOnly: true }} variant="outlined" sx={{ minWidth: 120 }} />
             </Stack>
-          </Grid>
-          <Grid item xs={12} md={4} sx={{ display: "flex", justifyContent: "flex-end" }}>
+          </Box>
+          <Box sx={{ flex: "1 1 180px", display: "flex", justifyContent: { xs: "flex-start", md: "flex-end" } }}>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={onAddRow}>
               Tambah Baris
             </Button>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </AccordionDetails>
     </Accordion>
   );

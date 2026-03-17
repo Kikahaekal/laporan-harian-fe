@@ -173,7 +173,7 @@ export default function EditLaporan() {
     try {
       await apiBe.post("/api/web/sales-reports/update", payload);
       alert("Laporan berhasil diperbarui!");
-      navigate("/rekap");
+      navigate("/rekap-be");
     } catch (error: any) {
       alert("Error: " + (error.response?.data?.message || "Gagal update"));
     } finally {
@@ -185,14 +185,14 @@ export default function EditLaporan() {
     return (
       <Box sx={{ p: 4, textAlign: "center" }}>
         <Alert severity="error">Parameter URL tidak valid. Akses melalui halaman Rekap.</Alert>
-        <Button sx={{ mt: 2 }} variant="contained" onClick={() => navigate("/rekap")}>Kembali ke Rekap</Button>
+        <Button sx={{ mt: 2 }} variant="contained" onClick={() => navigate("/rekap-be")}>Kembali ke Rekap</Button>
       </Box>
     );
   }
 
   return (
     <Box sx={{ p: 2, maxWidth: 1000, margin: "0 auto" }}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap")} sx={{ mb: 1.5 }}>Kembali</Button>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap-be")} sx={{ mb: 1.5 }}>Kembali</Button>
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
         <Typography variant="h6" fontWeight="bold">Edit Laporan: {MONTHS[queryMonth - 1]} {queryYear}</Typography>
         <Button

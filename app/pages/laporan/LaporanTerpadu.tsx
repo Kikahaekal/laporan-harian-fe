@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
     Box,
@@ -78,6 +78,8 @@ interface Sale {
     deposit: string | number;
     grand_total: string | number;
     note?: string | null;
+    closed_photo?: string | null;
+    closed_photo_url?: string | null;
     outlet?: { id: number; code: string; name: string };
     user?: { id: number; name: string };
     sale_items?: SaleItem[];
@@ -99,6 +101,10 @@ function fmtDate(s: string) {
     if (!s) return "-";
     const d = new Date(s);
     return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+function weekOfMonth(s: string) {
+    if (!s) return 0;
+    return Math.ceil(new Date(s).getDate() / 7);
 }
 function buildYears() {
     const y = new Date().getFullYear();
@@ -263,6 +269,8 @@ function NotaCard({
 }) {
     const isDropping = sale.status === "DROPPING";
     const items = sale.sale_items ?? [];
+    const closedPhotoUrl = sale.closed_photo_url ?? null;
+    const weekLabel = `Minggu ke-${weekOfMonth(sale.transaction_date)}`;
 
     // Deteksi nota carry-forward (DROPPING dari periode sebelumnya)
     const noteDate = sale.transaction_date ? new Date(sale.transaction_date) : null;
@@ -360,11 +368,26 @@ function NotaCard({
                     </Typography>
                     <Typography variant="caption" color="text.secondary">{fmtDate(sale.transaction_date)}</Typography>
                     <Chip
+                        label={weekLabel}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: "0.7rem", fontWeight: 700 }}
+                    />
+                    <Chip
                         label={sale.status}
                         size="small"
                         color={isDropping ? "warning" : "success"}
                         sx={{ fontWeight: 700, fontSize: "0.7rem" }}
                     />
+                    {closedPhotoUrl && (
+                        <Chip
+                            label="Outlet Tutup"
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, fontSize: "0.7rem" }}
+                        />
+                    )}
                     {/* Badge carry-forward jika dari bulan sebelumnya */}
                     {isCarryForward && (
                         <Chip
@@ -413,35 +436,48 @@ function NotaCard({
                 >
                     {isDropping ? (
                         // DROPPING: editable deposit + note + simpan
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems="flex-end">
-                            {/* <TextField
-                                label="Deposit (Rp)"
-                                size="small"
-                                type="number"
-                                value={deposit}
-                                onChange={(e) => setDeposit(e.target.value)}
-                                sx={{ width: 180 }}
-                                inputProps={{ min: 0 }}
-                            /> */}
-                            <TextField
-                                label="Catatan"
-                                size="small"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                sx={{ flex: 1 }}
-                                placeholder="Tambahkan catatan..."
-                            />
-                            <Button
-                                variant="contained"
-                                size="small"
-                                color="warning"
-                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
-                                onClick={handleSave}
-                                disabled={saving}
-                                sx={{ whiteSpace: "nowrap" }}
-                            >
-                                Simpan
-                            </Button>
+                        <Stack spacing={1.25}>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems="flex-end">
+                                <TextField
+                                    label="Catatan"
+                                    size="small"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    sx={{ flex: 1 }}
+                                    placeholder="Tambahkan catatan..."
+                                />
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    color="warning"
+                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon />}
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    sx={{ whiteSpace: "nowrap" }}
+                                >
+                                    Simpan
+                                </Button>
+                            </Stack>
+                            {closedPhotoUrl && (
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography variant="caption" color="text.secondary">Foto Tutup:</Typography>
+                                    <Box
+                                        component="img"
+                                        src={closedPhotoUrl}
+                                        alt="Foto outlet tutup"
+                                        sx={{
+                                            width: 56,
+                                            height: 56,
+                                            objectFit: "cover",
+                                            borderRadius: 1,
+                                            border: "2px solid",
+                                            borderColor: "warning.main",
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={() => window.open(closedPhotoUrl, "_blank")}
+                                    />
+                                </Stack>
+                            )}
                         </Stack>
                     ) : (
                         // INVOICED: Deposit | Total sejajar, catatan di bawah
@@ -466,6 +502,26 @@ function NotaCard({
                                     <Typography variant="body2" fontStyle="italic" color="text.secondary">
                                         {sale.note}
                                     </Typography>
+                                </Stack>
+                            )}
+                            {closedPhotoUrl && (
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography variant="caption" color="text.secondary">Foto Tutup:</Typography>
+                                    <Box
+                                        component="img"
+                                        src={closedPhotoUrl}
+                                        alt="Foto outlet tutup"
+                                        sx={{
+                                            width: 56,
+                                            height: 56,
+                                            objectFit: "cover",
+                                            borderRadius: 1,
+                                            border: "2px solid",
+                                            borderColor: "warning.main",
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={() => window.open(closedPhotoUrl, "_blank")}
+                                    />
                                 </Stack>
                             )}
                         </Stack>
@@ -596,6 +652,7 @@ export default function LaporanTerpadu() {
     const [year, setYear] = useState<number>(now.getFullYear());
     // 0 = semua minggu, 1-4 = filter per minggu
     const [week, setWeek] = useState<number>(0);
+    const [statusTab, setStatusTab] = useState<"ALL" | "DROPPING" | "INVOICED">("ALL");
 
     const [outlets, setOutlets] = useState<OutletData[]>([]);
     const [salesMap, setSalesMap] = useState<Record<number, Sale[]>>({});
@@ -706,7 +763,15 @@ export default function LaporanTerpadu() {
         });
     };
 
-    const allSales = Object.values(salesMap).flat();
+    const filteredSalesMap = useMemo(() => {
+        if (statusTab === "ALL") return salesMap;
+        const next: Record<number, Sale[]> = {};
+        Object.entries(salesMap).forEach(([key, sales]) => {
+            next[Number(key)] = sales.filter((s) => s.status === statusTab);
+        });
+        return next;
+    }, [salesMap, statusTab]);
+    const allSales = Object.values(filteredSalesMap).flat();
     const countDropping = allSales.filter((s) => s.status === "DROPPING").length;
     const countInvoiced = allSales.filter((s) => s.status === "INVOICED").length;
 
@@ -809,10 +874,34 @@ export default function LaporanTerpadu() {
                         Hari Kunjungan: {selectedDay}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                        — {week > 0 ? `Minggu ${week} · ` : ""}{MONTHS[month - 1]} {year}
+                        — {week > 0 ? `Minggu ke-${week} · ` : ""}{MONTHS[month - 1]} {year}
+                        {statusTab !== "ALL" ? ` · ${statusTab}` : ""}
                     </Typography>
                     {(loading || loadingOutlets) && <CircularProgress size={14} sx={{ ml: 1 }} />}
                 </Stack>
+                <Tabs
+                    value={statusTab}
+                    onChange={(_, v) => setStatusTab(v)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    sx={{ px: 1, borderTop: 1, borderColor: "divider", minHeight: 40 }}
+                >
+                    <Tab
+                        value="ALL"
+                        label={`Semua (${Object.values(salesMap).flat().length})`}
+                        sx={{ minHeight: 40, fontWeight: 700, fontSize: "0.75rem" }}
+                    />
+                    <Tab
+                        value="DROPPING"
+                        label={`Dropping (${Object.values(salesMap).flat().filter((s) => s.status === "DROPPING").length})`}
+                        sx={{ minHeight: 40, fontWeight: 700, fontSize: "0.75rem" }}
+                    />
+                    <Tab
+                        value="INVOICED"
+                        label={`Invoiced (${Object.values(salesMap).flat().filter((s) => s.status === "INVOICED").length})`}
+                        sx={{ minHeight: 40, fontWeight: 700, fontSize: "0.75rem" }}
+                    />
+                </Tabs>
             </Paper>
 
             {/* ── Content ── */}
@@ -840,7 +929,7 @@ export default function LaporanTerpadu() {
                         <OutletCard
                             key={outlet.id}
                             outlet={outlet}
-                            sales={salesMap[outlet.id] ?? []}
+                            sales={filteredSalesMap[outlet.id] ?? []}
                             onSaleUpdated={handleSaleUpdated}
                             onSaleDeleted={handleSaleDeleted}
                             selectedMonth={month}

@@ -7,6 +7,7 @@ export default [
     index("routes/home.tsx"),
     route("/laporan", "pages/laporan/LaporanTerpadu.tsx"),
     route("/edit", "pages/edit/EditLaporan.tsx"),
+    route("/rekap", "pages/rekap/Rekap.tsx"),
     route("/rekap-be", "pages/rekap-be/RekapBe.tsx"),
     route("/rekap-be/detail", "pages/rekap-be/RekapBeDetail.tsx"),
     route("/monitoring/:id", "pages/monitoring/MonitoringDetail.tsx"),

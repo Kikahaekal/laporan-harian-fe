@@ -38,6 +38,10 @@ function formatDate(dateStr: string) {
     const d = new Date(dateStr);
     return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
+function weekOfMonth(dateStr: string) {
+    if (!dateStr) return 0;
+    return Math.ceil(new Date(dateStr).getDate() / 7);
+}
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -105,8 +109,8 @@ export default function MonitoringDetail() {
     if (loading) {
         return (
             <Box sx={{ p: 2, maxWidth: 900, margin: "0 auto" }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/monitoring")} sx={{ mb: 1.5 }} disabled>
-                    Kembali ke Monitoring
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/laporan")} sx={{ mb: 1.5 }} disabled>
+                    Kembali ke Laporan
                 </Button>
                 <CardsSkeleton count={3} />
                 <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
@@ -125,7 +129,7 @@ export default function MonitoringDetail() {
     if (error || !nota) {
         return (
             <Box sx={{ p: 3 }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/monitoring")} sx={{ mb: 2 }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/laporan")} sx={{ mb: 2 }}>
                     Kembali
                 </Button>
                 <Alert severity="error">{error ?? "Nota tidak ditemukan."}</Alert>
@@ -136,8 +140,8 @@ export default function MonitoringDetail() {
     return (
         <Box sx={{ p: 2, maxWidth: 900, margin: "0 auto" }}>
             {/* Back button */}
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/monitoring")} sx={{ mb: 1.5 }}>
-                Kembali ke Monitoring
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/laporan")} sx={{ mb: 1.5 }}>
+                Kembali ke Laporan
             </Button>
 
             {/* Header */}
@@ -185,6 +189,7 @@ export default function MonitoringDetail() {
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Tanggal Transaksi</Typography>
                                 <Typography variant="body1" fontWeight={600}>{formatDate(nota.transaction_date)}</Typography>
+                                <Typography variant="caption" color="text.secondary">Minggu ke-{weekOfMonth(nota.transaction_date)}</Typography>
                             </Box>
                         </Stack>
                     </CardContent>
@@ -197,7 +202,7 @@ export default function MonitoringDetail() {
                             <PersonIcon color="action" sx={{ mt: 0.25 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>User / Sales</Typography>
-                                <Typography variant="body1" fontWeight={600}>{nota.user.name}</Typography>
+                                <Typography variant="body1" fontWeight={600}>{nota.user?.name ?? "-"}</Typography>
                             </Box>
                         </Stack>
                     </CardContent>
@@ -232,6 +237,28 @@ export default function MonitoringDetail() {
                         <Divider sx={{ my: 1.5 }} />
                         <InfoRow label="Catatan">
                             <Typography variant="body2">{nota.note}</Typography>
+                        </InfoRow>
+                    </>
+                )}
+                {nota.closed_photo_url && (
+                    <>
+                        <Divider sx={{ my: 1.5 }} />
+                        <InfoRow label="Foto Tutup">
+                            <Box
+                                component="img"
+                                src={nota.closed_photo_url}
+                                alt="Foto outlet tutup"
+                                sx={{
+                                    width: 120,
+                                    height: 120,
+                                    objectFit: "cover",
+                                    borderRadius: 1,
+                                    border: "2px solid",
+                                    borderColor: "warning.main",
+                                    cursor: "pointer",
+                                }}
+                                onClick={() => window.open(nota.closed_photo_url as string, "_blank")}
+                            />
                         </InfoRow>
                     </>
                 )}

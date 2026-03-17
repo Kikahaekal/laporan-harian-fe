@@ -195,7 +195,7 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap">
-        <Button variant="contained" startIcon={<ReceiptLongIcon />} onClick={() => navigate("/monitoring")}>
+        <Button variant="contained" startIcon={<ReceiptLongIcon />} onClick={() => navigate("/laporan")}>
           Monitor Nota
         </Button>
         <Button
@@ -318,7 +318,7 @@ export default function Dashboard() {
         {
           !loading && todayNota.length > 0 && (
             <Box sx={{ px: 2, py: 1, borderTop: 1, borderColor: "divider", display: "flex", justifyContent: "flex-end" }}>
-              <Button size="small" endIcon={<ReceiptLongIcon />} onClick={() => navigate("/monitoring")}>
+              <Button size="small" endIcon={<ReceiptLongIcon />} onClick={() => navigate("/laporan")}>
                 Lihat Semua Nota
               </Button>
             </Box>

@@ -28,7 +28,10 @@ export type Sale = {
   payment_status: PaymentStatus | null;
   deposit: string;
   grand_total: string;
+  dropping_total?: string;
   note: string | null;
+  closed_photo?: string | null;
+  closed_photo_url?: string | null;
   outlet?: { id: number; code: string; name: string };
   user?: { id: number; name: string };
   sale_items?: SaleItem[];
