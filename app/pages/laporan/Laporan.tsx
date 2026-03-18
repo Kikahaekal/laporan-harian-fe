@@ -51,6 +51,14 @@ function DayPanel({ value, index, children }: { value: number; index: number; ch
   return <Box sx={{ mt: 1 }}>{children}</Box>;
 }
 
+function normalizeReportRows(rows: any[]) {
+  return rows.map((row) => ({
+    ...row,
+    outlet_id: row.outlet_code ?? row.outlet_id ?? "",
+    item_id: row.item_code ?? row.item_id ?? "",
+  }));
+}
+
 export default function Laporan() {
   const navigate = useNavigate();
   const now = new Date();
@@ -86,8 +94,8 @@ export default function Laporan() {
           apiBe.get("/api/web/outlets", { signal: controller.signal }),
           apiBe.get("/api/web/items", { signal: controller.signal }),
         ]);
-        setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, name: o.name })));
-        setItems(resItem.data.map((i: any) => ({ id: i.id, name: i.name, price: Number(i.price) })));
+        setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, code: o.code, name: o.name })));
+        setItems(resItem.data.map((i: any) => ({ id: i.id, code: i.code, name: i.name, price: Number(i.price) })));
       } catch (err: any) {
         if (err.name !== "CanceledError") console.error("Gagal load master data", err);
       }
@@ -103,7 +111,7 @@ export default function Laporan() {
       try {
         const newData = getInitialDataByOutlet();
         const res = await apiBe.get("/api/web/sales-reports", { params: { month, year }, signal: controller.signal });
-        const dbRows = res.data as any[];
+        const dbRows = normalizeReportRows(res.data as any[]);
 
         if (dbRows.length > 0) {
           setHasExistingData(true);
@@ -170,7 +178,7 @@ export default function Laporan() {
         const newItems = g.items.map((it, j) => (j === itemIdx ? { ...it, [field]: value } : it));
         if (field === "qty_sold" || field === "item_id") {
           const row = newItems[itemIdx];
-          const item = items.find((m) => String(m.id) === row.item_id);
+          const item = items.find((m) => String(m.code) === row.item_id);
           if (item?.price != null && row.qty_sold) newItems[itemIdx] = { ...row, deposit: String(item.price * Number(row.qty_sold)) };
         }
         return { ...g, items: newItems };
@@ -252,8 +260,8 @@ export default function Laporan() {
     setRekapSummary(null);
     try {
       const res = await apiBe.get("/api/web/sales-reports", { params: { month, year } });
-      const rows = (res.data as any[]) || [];
-      const outletCodes = new Set(rows.map((r: any) => r.outlet_code ?? r.outlet?.code ?? r.outlet_id ?? "").filter(Boolean));
+      const rows = normalizeReportRows((res.data as any[]) || []);
+      const outletCodes = new Set(rows.map((r: any) => r.outlet_id ?? "").filter(Boolean));
       const jumlahToko = outletCodes.size;
       const totalDroping = rows.reduce((sum: number, r: any) => sum + (Number(r.deposit) || 0), 0);
       const targetToko = DEFAULT_TARGET_TOKO;

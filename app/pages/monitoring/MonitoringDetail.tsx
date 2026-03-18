@@ -17,6 +17,10 @@ import {
     Divider,
     Card,
     CardContent,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import { CardsSkeleton, TableRowsSkeleton } from "../../components/TableSkeleton";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -58,6 +62,15 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+interface ClosedPhoto {
+    id: number;
+    outlet_id: number;
+    closed_date: string;
+    note?: string | null;
+    photo_url?: string | null;
+    user?: { id: number; name: string };
+}
+
 export default function MonitoringDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -65,6 +78,9 @@ export default function MonitoringDetail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [nota, setNota] = useState<Sale | null>(null);
+    const [closedPhoto, setClosedPhoto] = useState<ClosedPhoto | null>(null);
+    const [photoLoading, setPhotoLoading] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -87,6 +103,32 @@ export default function MonitoringDetail() {
         return () => controller.abort();
     }, [id]);
 
+    useEffect(() => {
+        if (!nota?.outlet_id) return;
+        let active = true;
+        const load = async () => {
+            setPhotoLoading(true);
+            try {
+                const res = await apiBe.get(`/api/mobile/outlets/${nota.outlet_id}/closed-photo`);
+                if (!active) return;
+                setClosedPhoto(res.data?.data ?? null);
+            } catch (err: any) {
+                if (!active) return;
+                if (err?.response?.status === 404) {
+                    setClosedPhoto(null);
+                } else {
+                    console.error("Gagal load foto tutup outlet", err);
+                }
+            } finally {
+                if (active) setPhotoLoading(false);
+            }
+        };
+        load();
+        return () => {
+            active = false;
+        };
+    }, [nota?.outlet_id]);
+
     const saleItems = nota?.sale_items ?? [];
 
     const totals = useMemo(
@@ -108,9 +150,9 @@ export default function MonitoringDetail() {
 
     if (loading) {
         return (
-            <Box sx={{ p: 2, maxWidth: 900, margin: "0 auto" }}>
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/laporan")} sx={{ mb: 1.5 }} disabled>
-                    Kembali ke Laporan
+            <Box sx={{ p: 1.5, maxWidth: 900, margin: "0 auto" }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap-be")} sx={{ mb: 1.5 }} disabled>
+                    Kembali ke Rekap
                 </Button>
                 <CardsSkeleton count={3} />
                 <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
@@ -138,17 +180,17 @@ export default function MonitoringDetail() {
     }
 
     return (
-        <Box sx={{ p: 2, maxWidth: 900, margin: "0 auto" }}>
+        <Box sx={{ p: 1.5, maxWidth: 900, margin: "0 auto" }}>
             {/* Back button */}
-            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/laporan")} sx={{ mb: 1.5 }}>
-                Kembali ke Laporan
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap-be")} sx={{ mb: 1 }}>
+                Kembali ke Rekap
             </Button>
 
             {/* Header */}
-            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5} flexWrap="wrap" gap={1}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                     <ReceiptLongIcon color="primary" />
-                    <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "monospace" }}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "monospace" }}>
                         {nota.nota_number}
                     </Typography>
                 </Stack>
@@ -160,22 +202,32 @@ export default function MonitoringDetail() {
             </Stack>
 
             {/* Info Cards baris atas */}
-            <Stack direction="row" spacing={1.5} mb={2} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
+            <Stack direction="row" spacing={1} mb={1.5} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
                 {/* Outlet */}
                 <Card variant="outlined">
-                    <CardContent sx={{ pb: "12px !important" }}>
+                    <CardContent sx={{ py: 1.25 }}>
                         <Stack direction="row" spacing={1} alignItems="flex-start">
                             <StorefrontIcon color="action" sx={{ mt: 0.25 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Outlet</Typography>
                                 {nota.outlet ? (
                                     <>
-                                        <Typography variant="body1" fontWeight={600}>{nota.outlet.name}</Typography>
-                                        <Typography variant="body2" color="text.secondary">{nota.outlet.code}</Typography>
+                                        <Typography variant="body2" fontWeight={600}>{nota.outlet.name}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{nota.outlet.code}</Typography>
                                     </>
                                 ) : (
-                                    <Typography variant="body1">ID #{nota.outlet_id}</Typography>
+                                    <Typography variant="body2">ID #{nota.outlet_id}</Typography>
                                 )}
+                                <Box sx={{ mt: 0.75 }}>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => setPhotoOpen(true)}
+                                        disabled={!closedPhoto || photoLoading}
+                                    >
+                                        {photoLoading ? "Memuat..." : "Preview Foto Tutup"}
+                                    </Button>
+                                </Box>
                             </Box>
                         </Stack>
                     </CardContent>
@@ -183,12 +235,12 @@ export default function MonitoringDetail() {
 
                 {/* Tanggal */}
                 <Card variant="outlined">
-                    <CardContent sx={{ pb: "12px !important" }}>
+                    <CardContent sx={{ py: 1.25 }}>
                         <Stack direction="row" spacing={1} alignItems="flex-start">
                             <CalendarMonthIcon color="action" sx={{ mt: 0.25 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>Tanggal Transaksi</Typography>
-                                <Typography variant="body1" fontWeight={600}>{formatDate(nota.transaction_date)}</Typography>
+                                <Typography variant="body2" fontWeight={600}>{formatDate(nota.transaction_date)}</Typography>
                                 <Typography variant="caption" color="text.secondary">Minggu ke-{weekOfMonth(nota.transaction_date)}</Typography>
                             </Box>
                         </Stack>
@@ -197,12 +249,12 @@ export default function MonitoringDetail() {
 
                 {/* User */}
                 <Card variant="outlined">
-                    <CardContent sx={{ pb: "12px !important" }}>
+                    <CardContent sx={{ py: 1.25 }}>
                         <Stack direction="row" spacing={1} alignItems="flex-start">
                             <PersonIcon color="action" sx={{ mt: 0.25 }} />
                             <Box>
                                 <Typography variant="caption" color="text.secondary" fontWeight={600}>User / Sales</Typography>
-                                <Typography variant="body1" fontWeight={600}>{nota.user?.name ?? "-"}</Typography>
+                                <Typography variant="body2" fontWeight={600}>{nota.user?.name ?? "-"}</Typography>
                             </Box>
                         </Stack>
                     </CardContent>
@@ -210,24 +262,24 @@ export default function MonitoringDetail() {
             </Stack>
 
             {/* Keuangan */}
-            <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                <Typography variant="subtitle2" fontWeight={600} mb={1.5}>Ringkasan Pembayaran</Typography>
-                <Stack direction="row" spacing={4} flexWrap="wrap">
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight={600} mb={1}>Ringkasan Pembayaran</Typography>
+                <Stack direction="row" spacing={3} flexWrap="wrap">
                     <Box>
                         <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">Grand Total</Typography>
-                        <Typography variant="h5" fontWeight="bold" color="primary">
+                        <Typography variant="h6" fontWeight="bold" color="primary">
                             Rp {formatRupiah(nota.grand_total)}
                         </Typography>
                     </Box>
                     <Box>
                         <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">Deposit Diterima</Typography>
-                        <Typography variant="h5" fontWeight="bold" color="success.main">
+                        <Typography variant="h6" fontWeight="bold" color="success.main">
                             Rp {formatRupiah(nota.deposit)}
                         </Typography>
                     </Box>
                     <Box>
                         <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">Sisa</Typography>
-                        <Typography variant="h5" fontWeight="bold" color={sisa > 0 ? "error.main" : "text.secondary"}>
+                        <Typography variant="h6" fontWeight="bold" color={sisa > 0 ? "error.main" : "text.secondary"}>
                             {sisa > 0 ? `Rp ${formatRupiah(sisa)}` : "Lunas"}
                         </Typography>
                     </Box>
@@ -240,33 +292,11 @@ export default function MonitoringDetail() {
                         </InfoRow>
                     </>
                 )}
-                {nota.closed_photo_url && (
-                    <>
-                        <Divider sx={{ my: 1.5 }} />
-                        <InfoRow label="Foto Tutup">
-                            <Box
-                                component="img"
-                                src={nota.closed_photo_url}
-                                alt="Foto outlet tutup"
-                                sx={{
-                                    width: 120,
-                                    height: 120,
-                                    objectFit: "cover",
-                                    borderRadius: 1,
-                                    border: "2px solid",
-                                    borderColor: "warning.main",
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => window.open(nota.closed_photo_url as string, "_blank")}
-                            />
-                        </InfoRow>
-                    </>
-                )}
             </Paper>
 
             {/* Tabel Sale Items */}
             <Paper variant="outlined">
-                <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ px: 1.5, py: 1, display: "flex", alignItems: "center", gap: 1 }}>
                     <Typography variant="subtitle2" fontWeight={600}>Detail Barang</Typography>
                     <Chip label={`${saleItems.length} item`} size="small" variant="outlined" />
                 </Box>
@@ -354,6 +384,29 @@ export default function MonitoringDetail() {
                     </TableContainer>
                 )}
             </Paper>
+            <Dialog open={photoOpen} onClose={() => setPhotoOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Foto Toko Tutup</DialogTitle>
+                <DialogContent sx={{ pt: 1 }}>
+                    {closedPhoto?.photo_url ? (
+                        <Box
+                            component="img"
+                            src={closedPhoto.photo_url}
+                            alt={`Foto tutup ${nota.outlet?.name ?? nota.outlet_id}`}
+                            sx={{ width: "100%", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                        />
+                    ) : (
+                        <Typography color="text.secondary">Belum ada foto tutup untuk outlet ini hari ini.</Typography>
+                    )}
+                    {closedPhoto?.note && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                            {closedPhoto.note}
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPhotoOpen(false)} color="inherit">Tutup</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

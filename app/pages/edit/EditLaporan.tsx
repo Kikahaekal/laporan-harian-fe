@@ -40,6 +40,14 @@ function DayPanel({ value, index, children }: { value: number; index: number; ch
   return <Box sx={{ mt: 1 }}>{children}</Box>;
 }
 
+function normalizeReportRows(rows: any[]) {
+  return rows.map((row) => ({
+    ...row,
+    outlet_id: row.outlet_code ?? row.outlet_id ?? "",
+    item_id: row.item_code ?? row.item_id ?? "",
+  }));
+}
+
 export default function EditLaporan() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -65,9 +73,9 @@ export default function EditLaporan() {
           apiBe.get("/api/web/items", { signal: controller.signal }),
           apiBe.get("/api/web/sales-reports", { params: { month: queryMonth, year: queryYear }, signal: controller.signal }),
         ]);
-        setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, name: o.name })));
-        setItems(resItem.data.map((i: any) => ({ id: i.id, name: i.name, price: Number(i.price) })));
-        const dbRows = resReport.data as any[];
+        setOutlets(resOutlet.data.map((o: any) => ({ id: o.id, code: o.code, name: o.name })));
+        setItems(resItem.data.map((i: any) => ({ id: i.id, code: i.code, name: i.name, price: Number(i.price) })));
+        const dbRows = normalizeReportRows(resReport.data as any[]);
         const newData = getInitialDataByOutlet();
         if (dbRows.length > 0) {
           DAYS.forEach((dayName) => {
@@ -121,7 +129,7 @@ export default function EditLaporan() {
         const newItems = g.items.map((it, j) => (j === itemIdx ? { ...it, [field]: value } : it));
         if (field === "qty_sold" || field === "item_id") {
           const row = newItems[itemIdx];
-          const item = items.find((m) => String(m.id) === row.item_id);
+          const item = items.find((m) => String(m.code) === row.item_id);
           if (item?.price != null && row.qty_sold) newItems[itemIdx] = { ...row, deposit: String(item.price * Number(row.qty_sold)) };
         }
         return { ...g, items: newItems };

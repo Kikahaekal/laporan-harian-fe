@@ -5,7 +5,7 @@ import {
     Stack, Paper, CircularProgress, Alert, Button, Chip, Divider,
     Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
     Accordion, AccordionSummary, AccordionDetails, Card, CardContent,
-    IconButton, Tooltip, Grid,
+    IconButton, Tooltip, Grid, TextField, InputAdornment,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -17,6 +17,7 @@ import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import CategoryIcon from "@mui/icons-material/Category";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import CalendarViewWeekIcon from "@mui/icons-material/CalendarViewWeek";
+import SearchIcon from "@mui/icons-material/Search";
 import apiBe from "../../lib/axiosBe";
 import { MONTHS } from "../data/constant";
 import { type Sale } from "../data/constant";
@@ -104,6 +105,7 @@ export default function RekapBeDetail() {
     // Per-hari state
     const [dayTab, setDayTab] = useState(0);
     const [weekFilter, setWeekFilter] = useState(0);
+    const [search, setSearch] = useState("");
 
     // Data
     const [isLoading, setIsLoading] = useState(false);
@@ -145,30 +147,40 @@ export default function RekapBeDetail() {
 
     // ── Agregasi: Ringkasan ──────────────────────────────────────────────────
 
+    const filteredNotas = useMemo(() => {
+        if (!search.trim()) return allNotas;
+        const q = search.toLowerCase();
+        return allNotas.filter((n) =>
+            n.nota_number.toLowerCase().includes(q) ||
+            (n.outlet?.name ?? "").toLowerCase().includes(q) ||
+            (n.outlet?.code ?? "").toLowerCase().includes(q)
+        );
+    }, [allNotas, search]);
+
     const summary = useMemo(() => ({
-        total: allNotas.length,
-        invoiced: allNotas.filter((n) => n.status === "INVOICED").length,
-        dropping: allNotas.filter((n) => n.status === "DROPPING").length,
-        grandTotal: allNotas.reduce((s, n) => s + Number(n.grand_total || 0), 0),
-        deposit: allNotas.reduce((s, n) => s + Number(n.deposit || 0), 0),
-        outletCount: new Set(allNotas.map((n) => n.outlet_id)).size,
-    }), [allNotas]);
+        total: filteredNotas.length,
+        invoiced: filteredNotas.filter((n) => n.status === "INVOICED").length,
+        dropping: filteredNotas.filter((n) => n.status === "DROPPING").length,
+        grandTotal: filteredNotas.reduce((s, n) => s + Number(n.grand_total || 0), 0),
+        deposit: filteredNotas.reduce((s, n) => s + Number(n.deposit || 0), 0),
+        outletCount: new Set(filteredNotas.map((n) => n.outlet_id)).size,
+    }), [filteredNotas]);
 
     // Per-outlet
     const perOutlet = useMemo(() => {
         const map = new Map<number, { code: string; name: string; nota: number; grand: number; deposit: number }>();
-        allNotas.forEach((n) => {
+        filteredNotas.forEach((n) => {
             const key = n.outlet_id;
             const prev = map.get(key) ?? { code: n.outlet?.code ?? "", name: n.outlet?.name ?? `#${key}`, nota: 0, grand: 0, deposit: 0 };
             map.set(key, { ...prev, nota: prev.nota + 1, grand: prev.grand + Number(n.grand_total || 0), deposit: prev.deposit + Number(n.deposit || 0) });
         });
         return Array.from(map.values()).sort((a, b) => b.grand - a.grand);
-    }, [allNotas]);
+    }, [filteredNotas]);
 
     // Per-item
     const perItem = useMemo(() => {
         const map = new Map<number, { code: string; name: string; qtyOrder: number; qtySold: number; qtyRetur: number; qtySisa: number; subtotal: number }>();
-        allNotas.forEach((n) => {
+        filteredNotas.forEach((n) => {
             (n.saleItems ?? []).forEach((si) => {
                 const key = si.item_id;
                 const prev = map.get(key) ?? { code: si.item?.code ?? "", name: si.item?.name ?? `#${key}`, qtyOrder: 0, qtySold: 0, qtyRetur: 0, qtySisa: 0, subtotal: 0 };
@@ -183,12 +195,12 @@ export default function RekapBeDetail() {
             });
         });
         return Array.from(map.values()).sort((a, b) => b.subtotal - a.subtotal);
-    }, [allNotas]);
+    }, [filteredNotas]);
 
     // Per-minggu
     const perWeek = useMemo(() => {
         const map = new Map<number, { nota: number; grand: number; deposit: number; invoiced: number }>();
-        allNotas.forEach((n) => {
+        filteredNotas.forEach((n) => {
             const w = weekOfMonth(n.transaction_date);
             const prev = map.get(w) ?? { nota: 0, grand: 0, deposit: 0, invoiced: 0 };
             map.set(w, {
@@ -199,10 +211,10 @@ export default function RekapBeDetail() {
             });
         });
         return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-    }, [allNotas]);
+    }, [filteredNotas]);
 
     // Per-hari filtered
-    const weekFiltered = useMemo(() => weekFilter === 0 ? allNotas : allNotas.filter((n) => weekOfMonth(n.transaction_date) === weekFilter), [allNotas, weekFilter]);
+    const weekFiltered = useMemo(() => weekFilter === 0 ? filteredNotas : filteredNotas.filter((n) => weekOfMonth(n.transaction_date) === weekFilter), [filteredNotas, weekFilter]);
     const currentDay = DAYS_ID[dayTab];
     const dayNotas = useMemo(() => weekFiltered.filter((n) => dayName(n.transaction_date) === currentDay), [weekFiltered, currentDay]);
     const dayCountMap = useMemo(() => {
@@ -234,8 +246,25 @@ export default function RekapBeDetail() {
                             {buildYears().map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
                         </Select>
                     </FormControl>
+                    <TextField
+                        size="small"
+                        placeholder="Cari nota / outlet..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        sx={{ minWidth: 220 }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon fontSize="small" />
+                                </InputAdornment>
+                            )
+                        }}
+                    />
                     {!isLoading && allNotas.length > 0 && (
                         <Chip label={`${allNotas.length} nota bulan ini`} size="small" variant="outlined" color="primary" />
+                    )}
+                    {!isLoading && allNotas.length > 0 && filteredNotas.length !== allNotas.length && (
+                        <Chip label={`${filteredNotas.length} hasil`} size="small" variant="outlined" color="warning" />
                     )}
                 </Stack>
                 <Typography variant="caption" color="text.secondary" mt={1} display="block">
@@ -255,7 +284,13 @@ export default function RekapBeDetail() {
             ) : allNotas.length === 0 && !isLoading ? (
                 <Alert severity="info">Tidak ada data untuk {MONTHS[selectedMonth - 1]} {selectedYear}.</Alert>
             ) : (
-                <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+                <>
+                    {filteredNotas.length === 0 && (
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            Tidak ada data yang sesuai pencarian.
+                        </Alert>
+                    )}
+                    <Paper variant="outlined" sx={{ overflow: "hidden" }}>
                     {/* Main Tabs */}
                     <Tabs
                         value={mainTab}
@@ -520,14 +555,12 @@ export default function RekapBeDetail() {
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="right">Deposit</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="right">Sisa</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
-                                                                                <TableCell sx={{ fontWeight: 600 }} align="center">Foto</TableCell>
                                                                                 <TableCell sx={{ fontWeight: 600 }} align="center"></TableCell>
                                                                             </TableRow>
                                                                         </TableHead>
                                                                         <TableBody>
                                                                             {wnNotas.map((nota) => {
                                                                                 const sisa = Number(nota.grand_total || 0) - Number(nota.deposit || 0);
-                                                                                const photoUrl = (nota as any).closed_photo_url ?? null;
                                                                                 return (
                                                                                     <TableRow key={nota.id} hover>
                                                                                         <TableCell sx={{ fontFamily: "monospace", fontSize: "0.78rem", fontWeight: 600 }}>{nota.nota_number}</TableCell>
@@ -549,28 +582,6 @@ export default function RekapBeDetail() {
                                                                                         <TableCell align="center">
                                                                                             <Chip label={nota.status} size="small" color={nota.status === "INVOICED" ? "success" : "warning"} sx={{ fontSize: "0.7rem" }} />
                                                                                         </TableCell>
-                                                                                        {/* Foto Outlet Tutup */}
-                                                                                        <TableCell align="center">
-                                                                                            {photoUrl ? (
-                                                                                                <Tooltip title="Outlet tutup — klik untuk lihat foto">
-                                                                                                    <Box
-                                                                                                        component="img"
-                                                                                                        src={photoUrl}
-                                                                                                        alt="Foto outlet tutup"
-                                                                                                        sx={{
-                                                                                                            width: 40,
-                                                                                                            height: 40,
-                                                                                                            objectFit: "cover",
-                                                                                                            borderRadius: 1,
-                                                                                                            border: "2px solid",
-                                                                                                            borderColor: "warning.main",
-                                                                                                            cursor: "pointer",
-                                                                                                        }}
-                                                                                                        onClick={() => window.open(photoUrl, "_blank")}
-                                                                                                    />
-                                                                                                </Tooltip>
-                                                                                            ) : null}
-                                                                                        </TableCell>
                                                                                         <TableCell align="center">
                                                                                             <Tooltip title="Detail nota">
                                                                                                 <IconButton size="small" onClick={() => navigate(`/monitoring/${nota.id}`)}>
@@ -585,7 +596,7 @@ export default function RekapBeDetail() {
                                                                                 <TableCell colSpan={3} sx={{ fontWeight: 700, fontSize: "0.75rem" }}>TOTAL MINGGU {wn}</TableCell>
                                                                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Rp {fmtRupiah(wGrand)}</TableCell>
                                                                                 <TableCell align="right" sx={{ fontWeight: 700 }}>Rp {fmtRupiah(wDep)}</TableCell>
-                                                                                <TableCell colSpan={3} />
+                                                                                <TableCell colSpan={2} />
                                                                             </TableRow>
                                                                         </TableBody>
                                                                     </Table>
@@ -601,7 +612,8 @@ export default function RekapBeDetail() {
                             </Box>
                         </Box>
                     )}
-                </Paper>
+                    </Paper>
+                </>
             )}
         </Box>
     );

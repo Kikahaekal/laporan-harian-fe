@@ -44,6 +44,7 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import SummarizeIcon from "@mui/icons-material/Summarize";
 import apiBe from "../../lib/axiosBe";
+import { getDateForDayWeek } from "../data/constant";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -78,8 +79,6 @@ interface Sale {
     deposit: string | number;
     grand_total: string | number;
     note?: string | null;
-    closed_photo?: string | null;
-    closed_photo_url?: string | null;
     outlet?: { id: number; code: string; name: string };
     user?: { id: number; name: string };
     sale_items?: SaleItem[];
@@ -90,6 +89,16 @@ interface OutletData {
     code: string;
     name: string;
     visit_day?: string;
+}
+
+interface ClosedPhoto {
+    id: number;
+    outlet_id: number;
+    closed_date: string;
+    note?: string | null;
+    photo_url?: string | null;
+    user?: { id: number; name: string };
+    created_at?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -130,7 +139,13 @@ function DroppingItemTable({
     return (
         <>
             <TableContainer>
-                <Table size="small">
+                <Table
+                    size="small"
+                    sx={{
+                        "& td, & th": { py: 0.5, px: 0.75, fontSize: "0.75rem" },
+                        "& .MuiInputBase-root": { fontSize: "0.75rem" },
+                    }}
+                >
                     <TableHead>
                         <TableRow sx={{ bgcolor: "warning.50" }}>
                             <TableCell sx={{ fontWeight: 700 }}>Barang</TableCell>
@@ -148,7 +163,9 @@ function DroppingItemTable({
                             return (
                                 <TableRow key={it.id} hover>
                                     <TableCell>
-                                        <Typography variant="body2" fontWeight={600}>{it.item?.name ?? `Item #${it.item_id}`}</Typography>
+                                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.75rem" }}>
+                                            {it.item?.name ?? `Item #${it.item_id}`}
+                                        </Typography>
                                         <Typography variant="caption" color="text.secondary">{it.item?.code}</Typography>
                                     </TableCell>
                                     <TableCell align="center">
@@ -197,10 +214,10 @@ function DroppingItemTable({
             <Stack
                 direction="row"
                 justifyContent="flex-end"
-                sx={{ px: 2, py: 0.75, bgcolor: "warning.50", borderTop: "1px solid", borderColor: "warning.200" }}
+                sx={{ px: 1.5, py: 0.5, bgcolor: "warning.50", borderTop: "1px solid", borderColor: "warning.200" }}
             >
-                <Typography variant="body2" color="text.secondary" mr={1}>Total Dropping:</Typography>
-                <Typography variant="body2" fontWeight={700} color="warning.dark">{fmtRp(total)}</Typography>
+                <Typography variant="caption" color="text.secondary" mr={1}>Total Dropping:</Typography>
+                <Typography variant="caption" fontWeight={700} color="warning.dark">{fmtRp(total)}</Typography>
             </Stack>
         </>
     );
@@ -211,7 +228,12 @@ function DroppingItemTable({
 function InvoicedItemTable({ items }: { items: SaleItem[] }) {
     return (
         <TableContainer>
-            <Table size="small">
+            <Table
+                size="small"
+                sx={{
+                    "& td, & th": { py: 0.5, px: 0.75, fontSize: "0.75rem" },
+                }}
+            >
                 <TableHead>
                     <TableRow sx={{ bgcolor: "success.50" }}>
                         <TableCell sx={{ fontWeight: 700 }}>Barang</TableCell>
@@ -228,7 +250,9 @@ function InvoicedItemTable({ items }: { items: SaleItem[] }) {
                         return (
                             <TableRow key={it.id} hover>
                                 <TableCell>
-                                    <Typography variant="body2" fontWeight={600}>{it.item?.name ?? `Item #${it.item_id}`}</Typography>
+                                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.75rem" }}>
+                                        {it.item?.name ?? `Item #${it.item_id}`}
+                                    </Typography>
                                     <Typography variant="caption" color="text.secondary">{it.item?.code}</Typography>
                                 </TableCell>
                                 <TableCell align="center">{it.qty_order}</TableCell>
@@ -269,7 +293,6 @@ function NotaCard({
 }) {
     const isDropping = sale.status === "DROPPING";
     const items = sale.sale_items ?? [];
-    const closedPhotoUrl = sale.closed_photo_url ?? null;
     const weekLabel = `Minggu ke-${weekOfMonth(sale.transaction_date)}`;
 
     // Deteksi nota carry-forward (DROPPING dari periode sebelumnya)
@@ -344,7 +367,7 @@ function NotaCard({
             <Paper
                 variant="outlined"
                 sx={{
-                    mb: 1.5,
+                    mb: 1,
                     borderColor: isDropping ? "warning.main" : "success.main",
                     borderWidth: 1.5,
                     overflow: "hidden",
@@ -354,9 +377,9 @@ function NotaCard({
                 <Stack
                     direction="row"
                     alignItems="center"
-                    spacing={1.5}
+                    spacing={1}
                     sx={{
-                        px: 2, py: 1,
+                        px: 1.25, py: 0.6,
                         bgcolor: isDropping ? "warning.50" : "success.50",
                         borderBottom: "1px solid",
                         borderColor: isDropping ? "warning.200" : "success.200",
@@ -379,15 +402,6 @@ function NotaCard({
                         color={isDropping ? "warning" : "success"}
                         sx={{ fontWeight: 700, fontSize: "0.7rem" }}
                     />
-                    {closedPhotoUrl && (
-                        <Chip
-                            label="Outlet Tutup"
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                            sx={{ fontWeight: 700, fontSize: "0.7rem" }}
-                        />
-                    )}
                     {/* Badge carry-forward jika dari bulan sebelumnya */}
                     {isCarryForward && (
                         <Chip
@@ -412,7 +426,19 @@ function NotaCard({
                     )}
                 </Stack>
 
-                {/* ── Item table ── */}
+                <Box sx={{ px: 1.25, py: 0.6, bgcolor: "grey.50", borderBottom: "1px solid", borderColor: "divider" }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                        <Typography variant="caption" color="text.secondary">
+                            {items.length} item
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Total: {fmtRp(sale.grand_total)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Deposit: {fmtRp(sale.deposit)}
+                        </Typography>
+                    </Stack>
+                </Box>
                 <Box>
                     {isDropping ? (
                         <DroppingItemTable
@@ -428,8 +454,8 @@ function NotaCard({
                 {/* ── Footer ── */}
                 <Box
                     sx={{
-                        px: 2, py: 1.5,
-                        bgcolor: "grey.50",
+                        px: 1.25, py: 0.75,
+                        bgcolor: "background.paper",
                         borderTop: "1px solid",
                         borderColor: "divider",
                     }}
@@ -458,26 +484,6 @@ function NotaCard({
                                     Simpan
                                 </Button>
                             </Stack>
-                            {closedPhotoUrl && (
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="caption" color="text.secondary">Foto Tutup:</Typography>
-                                    <Box
-                                        component="img"
-                                        src={closedPhotoUrl}
-                                        alt="Foto outlet tutup"
-                                        sx={{
-                                            width: 56,
-                                            height: 56,
-                                            objectFit: "cover",
-                                            borderRadius: 1,
-                                            border: "2px solid",
-                                            borderColor: "warning.main",
-                                            cursor: "pointer",
-                                        }}
-                                        onClick={() => window.open(closedPhotoUrl, "_blank")}
-                                    />
-                                </Stack>
-                            )}
                         </Stack>
                     ) : (
                         // INVOICED: Deposit | Total sejajar, catatan di bawah
@@ -502,26 +508,6 @@ function NotaCard({
                                     <Typography variant="body2" fontStyle="italic" color="text.secondary">
                                         {sale.note}
                                     </Typography>
-                                </Stack>
-                            )}
-                            {closedPhotoUrl && (
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="caption" color="text.secondary">Foto Tutup:</Typography>
-                                    <Box
-                                        component="img"
-                                        src={closedPhotoUrl}
-                                        alt="Foto outlet tutup"
-                                        sx={{
-                                            width: 56,
-                                            height: 56,
-                                            objectFit: "cover",
-                                            borderRadius: 1,
-                                            border: "2px solid",
-                                            borderColor: "warning.main",
-                                            cursor: "pointer",
-                                        }}
-                                        onClick={() => window.open(closedPhotoUrl, "_blank")}
-                                    />
                                 </Stack>
                             )}
                         </Stack>
@@ -564,6 +550,8 @@ function OutletCard({
     sales,
     onSaleUpdated,
     onSaleDeleted,
+    selectedDay,
+    selectedWeek,
     selectedMonth,
     selectedYear,
 }: {
@@ -571,27 +559,97 @@ function OutletCard({
     sales: Sale[];
     onSaleUpdated: (updated: Sale) => void;
     onSaleDeleted: (id: number) => void;
+    selectedDay: string;
+    selectedWeek: number;
     selectedMonth: number;
     selectedYear: number;
 }) {
     const dropping = sales.filter((s) => s.status === "DROPPING");
     const invoiced = sales.filter((s) => s.status === "INVOICED");
+    const [closedPhoto, setClosedPhoto] = useState<ClosedPhoto | null>(null);
+    const [photoLoading, setPhotoLoading] = useState(false);
+    const [photoOpen, setPhotoOpen] = useState(false);
+
+    const expectedDate = useMemo(() => {
+        if (selectedWeek === 0) return null;
+        const d = getDateForDayWeek(selectedYear, selectedMonth, selectedDay, selectedWeek);
+        if (!d) return null;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    }, [selectedYear, selectedMonth, selectedDay, selectedWeek]);
+
+    const hasInvoicedOnDate = useMemo(() => {
+        if (!expectedDate) return false;
+        return sales.some(
+            (s) =>
+                s.status === "INVOICED" &&
+                (s.transaction_date ?? "").slice(0, 10) === expectedDate
+        );
+    }, [sales, expectedDate]);
+
+    const hasDropping = useMemo(() => sales.some((s) => s.status === "DROPPING"), [sales]);
+
+    useEffect(() => {
+        if (!expectedDate || hasInvoicedOnDate || !hasDropping) {
+            setClosedPhoto(null);
+            return;
+        }
+        let active = true;
+        const load = async () => {
+            setPhotoLoading(true);
+            try {
+                const res = await apiBe.get(`/api/mobile/outlets/${outlet.id}/closed-photos`);
+                if (!active) return;
+                const list: ClosedPhoto[] = res.data?.data ?? [];
+                const match = list.find((p) => (p.closed_date ?? "").slice(0, 10) === expectedDate) ?? null;
+                setClosedPhoto(match);
+            } catch (err: any) {
+                if (!active) return;
+                console.error("Gagal load foto tutup outlet", err);
+                setClosedPhoto(null);
+            } finally {
+                if (active) setPhotoLoading(false);
+            }
+        };
+        load();
+        return () => {
+            active = false;
+        };
+    }, [expectedDate, hasInvoicedOnDate, hasDropping, outlet.id]);
 
     return (
-        <Card variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
+        <Card variant="outlined" sx={{ mb: 1.25, borderRadius: 1.5 }}>
             <CardHeader
                 avatar={<StorefrontIcon color="primary" />}
                 title={
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                        <Typography variant="subtitle1" fontWeight={700}>{outlet.name}</Typography>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                        <Typography variant="subtitle2" fontWeight={700}>{outlet.name}</Typography>
                         <Chip label={outlet.code} size="small" variant="outlined" sx={{ fontSize: "0.7rem" }} />
                         {outlet.visit_day && (
                             <Chip label={outlet.visit_day} size="small" color="primary" sx={{ fontSize: "0.7rem" }} />
                         )}
+                        {expectedDate && hasDropping && !hasInvoicedOnDate && closedPhoto && (
+                            <Chip
+                                label="Tutup"
+                                size="small"
+                                color="error"
+                                sx={{ fontSize: "0.7rem" }}
+                            />
+                        )}
+                        {expectedDate && hasDropping && !hasInvoicedOnDate && closedPhoto && (
+                            <Button size="small" variant="outlined" onClick={() => setPhotoOpen(true)} sx={{ minWidth: 0 }}>
+                                Lihat Foto
+                            </Button>
+                        )}
+                        {expectedDate && hasDropping && !hasInvoicedOnDate && !closedPhoto && photoLoading && (
+                            <Chip label="Cek tutup..." size="small" variant="outlined" sx={{ fontSize: "0.7rem" }} />
+                        )}
                     </Stack>
                 }
                 subheader={
-                    <Stack direction="row" spacing={1} mt={0.25}>
+                    <Stack direction="row" spacing={0.75} mt={0.25} flexWrap="wrap">
                         {dropping.length > 0 && (
                             <Chip label={`${dropping.length} DROPPING`} size="small" color="warning" variant="outlined" />
                         )}
@@ -603,10 +661,10 @@ function OutletCard({
                         )}
                     </Stack>
                 }
-                sx={{ pb: 0.5 }}
+                sx={{ pb: 0.25 }}
             />
             <Divider />
-            <CardContent sx={{ pt: 1 }}>
+            <CardContent sx={{ pt: 0.75, pb: 1 }}>
                 {sales.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
                         Tidak ada nota untuk outlet ini di periode yang dipilih.
@@ -636,6 +694,39 @@ function OutletCard({
                     </>
                 )}
             </CardContent>
+            <Dialog open={photoOpen} onClose={() => setPhotoOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Foto Toko Tutup</DialogTitle>
+                <DialogContent sx={{ pt: 1 }}>
+                    {closedPhoto?.photo_url ? (
+                        <Box
+                            component="img"
+                            src={closedPhoto.photo_url}
+                            alt={`Foto tutup ${outlet.name}`}
+                            sx={{ width: "100%", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                        />
+                    ) : (
+                        <Typography color="text.secondary">Belum ada foto tutup untuk outlet ini pada tanggal tersebut.</Typography>
+                    )}
+                    {closedPhoto?.user?.name && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                            Dilaporkan oleh: {closedPhoto.user.name}
+                        </Typography>
+                    )}
+                    {closedPhoto?.created_at && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                            Waktu: {new Date(closedPhoto.created_at).toLocaleString("id-ID")}
+                        </Typography>
+                    )}
+                    {closedPhoto?.note && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                            {closedPhoto.note}
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPhotoOpen(false)} color="inherit">Tutup</Button>
+                </DialogActions>
+            </Dialog>
         </Card>
     );
 }
@@ -660,6 +751,15 @@ export default function LaporanTerpadu() {
     const [loadingOutlets, setLoadingOutlets] = useState(false);
 
     const selectedDay = DAYS[dayTab];
+
+    useEffect(() => {
+        const today = new Date();
+        if (month === today.getMonth() + 1 && year === today.getFullYear()) {
+            setWeek(weekOfMonth(today.toISOString()));
+        } else {
+            setWeek(0);
+        }
+    }, [month, year]);
 
     // Hitung range tanggal berdasarkan bulan/tahun/minggu yang dipilih
     const weekDateRange = (): { from: string; to: string } => {
@@ -932,6 +1032,8 @@ export default function LaporanTerpadu() {
                             sales={filteredSalesMap[outlet.id] ?? []}
                             onSaleUpdated={handleSaleUpdated}
                             onSaleDeleted={handleSaleDeleted}
+                            selectedDay={selectedDay}
+                            selectedWeek={week}
                             selectedMonth={month}
                             selectedYear={year}
                         />

@@ -102,7 +102,7 @@ export default function WeeklySection({
                       >
                         <MenuItem value=""><em>Pilih Outlet</em></MenuItem>
                         {masterOutlets.map((o) => (
-                          <MenuItem key={o.id} value={String(o.id)}>{o.name}</MenuItem>
+                          <MenuItem key={o.id} value={String(o.code)}>{`${o.code} — ${o.name}`}</MenuItem>
                         ))}
                       </TextField>
                     </TableCell>
@@ -119,7 +119,7 @@ export default function WeeklySection({
                       >
                         <MenuItem value=""><em>Pilih Item</em></MenuItem>
                         {masterItems.map((item) => (
-                          <MenuItem key={item.id} value={String(item.id)}>{item.name}</MenuItem>
+                          <MenuItem key={item.id} value={String(item.code)}>{`${item.code} — ${item.name}`}</MenuItem>
                         ))}
                       </TextField>
                     </TableCell>

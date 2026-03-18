@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: https://api.pinangmajusejahtera.my.id,
+    // baseURL: 'https://api.pinangmajusejahtera.my.id',
+    baseURL: import.meta.env.VITE_API_URL,
     headers: {
         'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json',

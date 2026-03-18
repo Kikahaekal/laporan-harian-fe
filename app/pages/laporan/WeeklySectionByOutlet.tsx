@@ -125,7 +125,7 @@ export default function WeeklySectionByOutlet({
         <Stack spacing={1.5}>
           {groups.map((group, gIdx) => {
             const totals = itemRowTotals(group.items);
-            const outletName = group.outlet_id ? masterOutlets.find((o) => String(o.id) === group.outlet_id)?.name ?? "" : "";
+            const outletName = group.outlet_id ? masterOutlets.find((o) => String(o.code) === group.outlet_id)?.name ?? "" : "";
 
             return (
               <Paper key={gIdx} variant="outlined" sx={{ p: 1, bgcolor: "grey.50" }}>
@@ -143,7 +143,7 @@ export default function WeeklySectionByOutlet({
                     sx={{ minWidth: 180, "& .MuiInputBase-root": { backgroundColor: group.outlet_id ? "#e3f2fd" : "background.paper" }, "& .MuiOutlinedInput-input": { py: 1 } }}
                   >
                     {masterOutlets.map((o) => (
-                      <MenuItem key={o.id} value={String(o.id)}>{o.name}</MenuItem>
+                      <MenuItem key={o.id} value={String(o.code)}>{`${o.code} — ${o.name}`}</MenuItem>
                     ))}
                   </TextField>
                   <TextField
@@ -196,14 +196,14 @@ export default function WeeklySectionByOutlet({
                             onChange={(e) => {
                               const val = e.target.value;
                               onItemChange(gIdx, iIdx, "item_id", val);
-                              const it = masterItems.find((m) => String(m.id) === val);
+                              const it = masterItems.find((m) => String(m.code) === val);
                               if (it?.price != null && item.qty_sold) onItemChange(gIdx, iIdx, "deposit", String(it.price * Number(item.qty_sold)));
                             }}
                             disabled={readOnly}
                             sx={{ ...inputSx(!!item.item_id), "& .MuiOutlinedInput-input": { py: 0.75 }, "& .MuiInputLabel-root": { display: "none" } }}
                           >
                             {masterItems.map((m) => (
-                              <MenuItem key={m.id} value={String(m.id)}>{m.name}</MenuItem>
+                              <MenuItem key={m.id} value={String(m.code)}>{`${m.code} — ${m.name}`}</MenuItem>
                             ))}
                           </TextField>
                         </TableCell>
@@ -229,7 +229,7 @@ export default function WeeklySectionByOutlet({
                             value={item.qty_sold}
                             onChange={(e) => {
                               onItemChange(gIdx, iIdx, "qty_sold", e.target.value);
-                              const it = masterItems.find((m) => String(m.id) === item.item_id);
+                              const it = masterItems.find((m) => String(m.code) === item.item_id);
                               if (it?.price != null) onItemChange(gIdx, iIdx, "deposit", String(it.price * Number(e.target.value || 0)));
                             }}
                             disabled={readOnly}
