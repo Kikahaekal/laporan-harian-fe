@@ -49,14 +49,39 @@ function SummaryCard({ icon, label, value, sub, color = "text.primary" }: {
     icon: React.ReactNode; label: string; value: string | number; sub?: string; color?: string;
 }) {
     return (
-        <Card variant="outlined" sx={{ flex: "1 1 170px", minWidth: 150 }}>
-            <CardContent sx={{ py: "12px !important", px: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={0.75} mb={0.5}>
-                    {icon}
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>{label}</Typography>
+        <Card
+            variant="outlined"
+            sx={{ flex: { xs: "0 0 auto", sm: "1 1 150px" }, minWidth: { xs: 0, sm: 130 } }}
+        >
+            <CardContent
+                sx={{
+                    py: { xs: 0.75, sm: 0.75 },
+                    px: { xs: 1, sm: 1.25 },
+                    "&:last-child": { pb: { xs: 0.75, sm: 0.75 } },
+                }}
+            >
+                <Stack spacing={0.35}>
+                    <Stack direction="row" alignItems="center" spacing={0.75}>
+                        {icon}
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ lineHeight: 1, fontSize: { xs: "0.68rem", sm: "0.75rem" } }}>
+                            {label}
+                        </Typography>
+                    </Stack>
+                    <Typography
+                        variant="subtitle1"
+                        fontWeight={700}
+                        color={color}
+                        lineHeight={1}
+                        sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}
+                    >
+                        {value}
+                    </Typography>
+                    {sub && (
+                        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1, fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>
+                            {sub}
+                        </Typography>
+                    )}
                 </Stack>
-                <Typography variant="h6" fontWeight="bold" color={color} lineHeight={1.1}>{value}</Typography>
-                {sub && <Typography variant="caption" color="text.secondary">{sub}</Typography>}
             </CardContent>
         </Card>
     );
@@ -172,10 +197,10 @@ export default function Tagihan() {
     const yearOptions = Array.from({ length: 3 }, (_, i) => currentYear - i);
 
     return (
-        <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1100, margin: "0 auto" }}>
+        <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
 
             {/* ── Header ── */}
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
+            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} mb={1} flexWrap="wrap">
                 <AccountBalanceWalletIcon color="primary" sx={{ fontSize: 32 }} />
                 <Box>
                     <Typography variant="h5" fontWeight="bold" lineHeight={1.2}>Tagihan</Typography>
@@ -184,7 +209,7 @@ export default function Tagihan() {
                     </Typography>
                 </Box>
             </Stack>
-            <Divider sx={{ mb: 2.5 }} />
+            <Divider sx={{ mb: 2 }} />
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -194,7 +219,7 @@ export default function Tagihan() {
                     {[1, 2, 3, 4].map((i) => <Skeleton key={i} variant="rounded" width={160} height={72} />)}
                 </Stack>
             ) : (
-                <Stack direction="row" spacing={1.5} mb={2.5} flexWrap="wrap">
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2} flexWrap="wrap">
                     <SummaryCard
                         icon={<ReceiptLongIcon fontSize="small" color="error" />}
                         label="Belum Lunas"
@@ -227,16 +252,16 @@ export default function Tagihan() {
             )}
 
             {/* ── Filter Bar ── */}
-            <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={0.75} mb={1.5} flexWrap="wrap">
                 <TextField
                     size="small"
                     placeholder="Cari nota / outlet..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    sx={{ width: 220 }}
+                    sx={{ width: { xs: "100%", sm: 220 } }}
                     InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
                 />
-                <FormControl size="small" sx={{ minWidth: 170 }}>
+                <FormControl size="small" sx={{ minWidth: 170, width: { xs: "100%", sm: "auto" } }}>
                     <InputLabel>Status Bayar</InputLabel>
                     <Select
                         label="Status Bayar"
@@ -250,13 +275,13 @@ export default function Tagihan() {
                         <MenuItem value="ALL">Semua</MenuItem>
                     </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
+                <FormControl size="small" sx={{ minWidth: 120, width: { xs: "100%", sm: "auto" } }}>
                     <InputLabel>Tahun</InputLabel>
                     <Select label="Tahun" value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
                         {yearOptions.map((y) => <MenuItem key={y} value={String(y)}>{y}</MenuItem>)}
                     </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 130 }}>
+                <FormControl size="small" sx={{ minWidth: 130, width: { xs: "100%", sm: "auto" } }}>
                     <InputLabel>Bulan</InputLabel>
                     <Select label="Bulan" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
                         <MenuItem value="">Semua Bulan</MenuItem>
@@ -267,8 +292,8 @@ export default function Tagihan() {
 
             {/* ── Tabel Tagihan ── */}
             <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-                <TableContainer>
-                    <Table size="small">
+                <TableContainer sx={{ overflowX: "auto" }}>
+                    <Table size="small" sx={{ minWidth: 900 }}>
                         <TableHead>
                             <TableRow sx={{ bgcolor: "primary.main" }}>
                                 {["No Nota", "Outlet", "Tgl Transaksi", "Total Tagihan", "Deposit", "Sisa Tagihan", "Status", "Aksi"].map((h) => (

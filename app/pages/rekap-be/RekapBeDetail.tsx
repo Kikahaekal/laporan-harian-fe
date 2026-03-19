@@ -225,7 +225,7 @@ export default function RekapBeDetail() {
     const weeksInDay = useMemo(() => Array.from(new Set(dayNotas.map((n) => weekOfMonth(n.transaction_date)))).sort((a, b) => a - b), [dayNotas]);
 
     return (
-        <Box sx={{ p: 2, maxWidth: 1150, margin: "0 auto" }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2 }, maxWidth: 1150, margin: "0 auto" }}>
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap-be")} sx={{ mb: 1.5 }}>
                 Kembali
             </Button>
@@ -233,14 +233,14 @@ export default function RekapBeDetail() {
             {/* ── Periode Selector ── */}
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" mb={1} fontWeight={600}>Periode</Typography>
-                <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-                    <FormControl size="small" sx={{ minWidth: 150 }}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} flexWrap="wrap" alignItems={{ xs: "stretch", sm: "center" }}>
+                    <FormControl size="small" sx={{ minWidth: 150, width: { xs: "100%", sm: "auto" } }}>
                         <InputLabel>Bulan</InputLabel>
                         <Select label="Bulan" value={selectedMonth} onChange={(e) => { setSelectedMonth(Number(e.target.value)); setWeekFilter(0); }}>
                             {MONTHS.map((name, idx) => <MenuItem key={idx + 1} value={idx + 1}>{name}</MenuItem>)}
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 110 }}>
+                    <FormControl size="small" sx={{ minWidth: 110, width: { xs: "100%", sm: "auto" } }}>
                         <InputLabel>Tahun</InputLabel>
                         <Select label="Tahun" value={selectedYear} onChange={(e) => { setSelectedYear(Number(e.target.value)); setWeekFilter(0); }}>
                             {buildYears().map((y) => <MenuItem key={y} value={y}>{y}</MenuItem>)}
@@ -251,7 +251,7 @@ export default function RekapBeDetail() {
                         placeholder="Cari nota / outlet..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        sx={{ minWidth: 220 }}
+                        sx={{ minWidth: 220, width: { xs: "100%", sm: "auto" } }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -295,6 +295,8 @@ export default function RekapBeDetail() {
                     <Tabs
                         value={mainTab}
                         onChange={(_, v) => setMainTab(v)}
+                        variant="scrollable"
+                        scrollButtons="auto"
                         sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "grey.50" }}
                     >
                         <Tab label="📊 Ringkasan Bulanan" sx={{ fontWeight: 600 }} />
@@ -305,7 +307,7 @@ export default function RekapBeDetail() {
                     {mainTab === 0 && (
                         <Box sx={{ p: 2 }}>
                             {/* Summary Cards */}
-                            <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap">
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} mb={3} flexWrap="wrap">
                                 <StatCard icon={<ReceiptLongIcon fontSize="small" color="action" />} label="Total Nota" value={summary.total} />
                                 <StatCard icon={<CheckCircleIcon fontSize="small" color="success" />} label="Invoiced" value={summary.invoiced} color="#2e7d32" />
                                 <StatCard icon={<LocalShippingIcon fontSize="small" color="warning" />} label="Dropping Aktif" value={summary.dropping} color="#ed6c02" />
@@ -318,7 +320,7 @@ export default function RekapBeDetail() {
                             <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                                 <CalendarViewWeekIcon fontSize="small" /> Rekap Per Minggu
                             </Typography>
-                            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, overflowX: "auto" }}>
                                 <Table size="small">
                                     <TableHead sx={{ bgcolor: "primary.main" }}>
                                         <TableRow>
@@ -373,7 +375,7 @@ export default function RekapBeDetail() {
                             <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                                 <StorefrontIcon fontSize="small" /> Rekap Per Outlet
                             </Typography>
-                            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                            <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, overflowX: "auto" }}>
                                 <Table size="small">
                                     <TableHead sx={{ bgcolor: "grey.700" }}>
                                         <TableRow>
@@ -411,7 +413,7 @@ export default function RekapBeDetail() {
                             <Typography variant="subtitle1" fontWeight={700} mb={1} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                                 <CategoryIcon fontSize="small" /> Rekap Per Barang
                             </Typography>
-                            <TableContainer component={Paper} variant="outlined">
+                            <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
                                 <Table size="small">
                                     <TableHead sx={{ bgcolor: "secondary.main" }}>
                                         <TableRow>
@@ -544,7 +546,7 @@ export default function RekapBeDetail() {
                                                                 </Stack>
                                                             </AccordionSummary>
                                                             <AccordionDetails sx={{ pt: 0, px: 1.5, pb: 1.5 }}>
-                                                                <TableContainer>
+                                                                <TableContainer sx={{ overflowX: "auto" }}>
                                                                     <Table size="small">
                                                                         <TableHead>
                                                                             <TableRow sx={{ bgcolor: "grey.100" }}>

@@ -275,14 +275,14 @@ export default function Item() {
   // ════════════════════════════════════════════════════════════
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1100, margin: "0 auto" }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 1100, margin: "0 auto" }}>
       {/* ── Page Header ── */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={1}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} flexWrap="wrap" gap={1}>
         <Stack direction="row" alignItems="center" spacing={1}>
           <LocalOfferIcon color="secondary" />
           <Typography variant="h5" fontWeight="bold">Master Barang</Typography>
         </Stack>
-        <Stack direction="row" spacing={1}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
           {activeTab === 0 && (
             <Button variant="contained" color="secondary" startIcon={<AddIcon />} onClick={handleOpenAddItem}>
               Tambah Barang
@@ -301,6 +301,8 @@ export default function Item() {
         <Tabs
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "grey.50" }}
         >
           <Tab
@@ -331,7 +333,7 @@ export default function Item() {
         {activeTab === 0 && (
           <Box sx={{ p: 2 }}>
             {/* Summary Chips */}
-            <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2} flexWrap="wrap">
               <Chip
                 icon={<InventoryIcon fontSize="small" />}
                 label={`Total stok: ${totalStock.toLocaleString("id-ID")}`}
@@ -343,16 +345,16 @@ export default function Item() {
             </Stack>
 
             {/* Filter */}
-            <Stack direction="row" spacing={1} mb={2} flexWrap="wrap">
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2} flexWrap="wrap">
               <TextField
                 size="small"
                 placeholder="Cari nama atau kode barang..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-                sx={{ width: 280 }}
+                sx={{ width: { xs: "100%", sm: 280 } }}
               />
-              <FormControl size="small" sx={{ minWidth: 180 }}>
+              <FormControl size="small" sx={{ minWidth: 180, width: { xs: "100%", sm: "auto" } }}>
                 <InputLabel>Filter Kategori</InputLabel>
                 <Select
                   label="Filter Kategori"
@@ -366,8 +368,8 @@ export default function Item() {
             </Stack>
 
             {/* Tabel Barang */}
-            <TableContainer component={Paper} elevation={1}>
-              <Table>
+            <TableContainer component={Paper} elevation={1} sx={{ overflowX: "auto" }}>
+              <Table sx={{ minWidth: 820 }}>
                 <TableHead sx={{ bgcolor: "secondary.main" }}>
                   <TableRow>
                     <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>
@@ -446,8 +448,8 @@ export default function Item() {
             <Typography variant="body2" color="text.secondary" mb={2}>
               Kelola kategori barang. Kategori dipakai untuk mengelompokkan barang agar mudah difilter.
             </Typography>
-            <TableContainer component={Paper} elevation={1}>
-              <Table>
+            <TableContainer component={Paper} elevation={1} sx={{ overflowX: "auto" }}>
+              <Table sx={{ minWidth: 640 }}>
                 <TableHead sx={{ bgcolor: "info.main" }}>
                   <TableRow>
                     <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>

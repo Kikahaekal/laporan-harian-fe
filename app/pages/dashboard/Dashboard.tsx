@@ -80,23 +80,51 @@ function SummaryCard({ icon, label, value, color = "primary", sub }: SummaryCard
     info: "#0288d1",
   };
   return (
-    <Card variant="outlined" sx={{ flex: "1 1 200px", minWidth: 170 }}>
-      <CardContent sx={{ pb: "12px !important" }}>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-          <Box>
-            <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+    <Card
+      variant="outlined"
+      sx={{
+        flex: { xs: "0 0 auto", sm: "1 1 200px" },
+        minWidth: { xs: 0, sm: 160 },
+      }}
+    >
+      <CardContent
+        sx={{
+          py: { xs: 0.75, sm: 1 },
+          px: { xs: 1, sm: 1.5 },
+          "&:last-child": { pb: { xs: 0.75, sm: 1 } },
+        }}
+      >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.75}>
+          <Stack spacing={0.35}>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={600}
+              display="block"
+              sx={{ lineHeight: 1, fontSize: { xs: "0.68rem", sm: "0.75rem" } }}
+            >
               {label}
             </Typography>
-            <Typography variant="h4" fontWeight="bold" color={colorMap[color]} sx={{ mt: 0.5 }}>
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              color={colorMap[color]}
+              lineHeight={1}
+              sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}
+            >
               {value}
             </Typography>
             {sub && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ lineHeight: 1, fontSize: { xs: "0.65rem", sm: "0.75rem" } }}
+              >
                 {sub}
               </Typography>
             )}
-          </Box>
-          <Box sx={{ color: colorMap[color], opacity: 0.8, mt: 0.5 }}>{icon}</Box>
+          </Stack>
+          <Box sx={{ color: colorMap[color], opacity: 0.8, "& svg": { fontSize: { xs: 22, sm: 32 } } }}>{icon}</Box>
         </Stack>
       </CardContent>
     </Card>
@@ -143,9 +171,9 @@ export default function Dashboard() {
   const recentNota = todayNota.slice(0, 8);
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1100, margin: "0 auto" }}>
+    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
       {/* Header */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={1}>
+      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
         <Box>
           <Typography variant="h5" fontWeight="bold">
             Dashboard Monitoring
@@ -163,7 +191,7 @@ export default function Dashboard() {
       {loading ? (
         <CardsSkeleton count={4} />
       ) : (
-        <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2.5} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
           <SummaryCard
             icon={<ReceiptLongIcon sx={{ fontSize: 36 }} />}
             label="Total Nota Hari Ini"
@@ -194,8 +222,13 @@ export default function Dashboard() {
       )}
 
       {/* Quick Actions */}
-      <Stack direction="row" spacing={1.5} mb={3} flexWrap="wrap">
-        <Button variant="contained" startIcon={<ReceiptLongIcon />} onClick={() => navigate("/laporan")}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2.5} flexWrap="wrap">
+        <Button
+          variant="contained"
+          startIcon={<ReceiptLongIcon />}
+          onClick={() => navigate("/laporan")}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
+        >
           Monitor Nota
         </Button>
         <Button
@@ -206,20 +239,26 @@ export default function Dashboard() {
             const now = new Date();
             navigate(`/rekap-be/detail?year=${now.getFullYear()}&month=${now.getMonth() + 1}`);
           }}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
         >
           📊 Rekap Bulan Ini
         </Button>
-        <Button variant="outlined" startIcon={<AssessmentIcon />} onClick={() => navigate("/laporan")}>
+        <Button
+          variant="outlined"
+          startIcon={<AssessmentIcon />}
+          onClick={() => navigate("/laporan")}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
+        >
           Laporan Harian
         </Button>
       </Stack>
 
 
-      <Divider sx={{ mb: 3 }} />
+      <Divider sx={{ mb: 2 }} />
 
       {/* Tabel Nota Hari Ini */}
       <Paper variant="outlined">
-        <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1, display: "flex", alignItems: "center", gap: 1 }}>
           <StorefrontIcon color="action" />
           <Typography variant="subtitle1" fontWeight={600}>
             Nota Hari Ini
@@ -231,8 +270,8 @@ export default function Dashboard() {
         <Divider />
 
         {loading ? (
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="small" sx={{ minWidth: 720 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: "grey.50" }}>
                   <TableCell sx={{ fontWeight: 600 }}>No. Nota</TableCell>
@@ -254,8 +293,8 @@ export default function Dashboard() {
             <Typography color="text.secondary">Belum ada nota transaksi hari ini.</Typography>
           </Box>
         ) : (
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="small" sx={{ minWidth: 720 }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: "grey.50" }}>
                   <TableCell sx={{ fontWeight: 600 }}>No. Nota</TableCell>

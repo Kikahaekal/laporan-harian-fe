@@ -128,8 +128,8 @@ export default function WeeklySectionByOutlet({
             const outletName = group.outlet_id ? masterOutlets.find((o) => String(o.code) === group.outlet_id)?.name ?? "" : "";
 
             return (
-              <Paper key={gIdx} variant="outlined" sx={{ p: 1, bgcolor: "grey.50" }}>
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }} flexWrap="wrap">
+              <Paper key={gIdx} variant="outlined" sx={{ p: 1, bgcolor: "grey.50", overflowX: "auto" }}>
+                <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "stretch", sm: "center" }} spacing={1} sx={{ mb: 1 }} flexWrap="wrap">
                   <StorefrontIcon fontSize="small" color="action" />
                   <TextField
                     select
@@ -140,7 +140,7 @@ export default function WeeklySectionByOutlet({
                     value={group.outlet_id}
                     onChange={(e) => onOutletChange(gIdx, e.target.value)}
                     disabled={readOnly}
-                    sx={{ minWidth: 180, "& .MuiInputBase-root": { backgroundColor: group.outlet_id ? "#e3f2fd" : "background.paper" }, "& .MuiOutlinedInput-input": { py: 1 } }}
+                    sx={{ minWidth: 180, width: { xs: "100%", sm: "auto" }, "& .MuiInputBase-root": { backgroundColor: group.outlet_id ? "#e3f2fd" : "background.paper" }, "& .MuiOutlinedInput-input": { py: 1 } }}
                   >
                     {masterOutlets.map((o) => (
                       <MenuItem key={o.id} value={String(o.code)}>{`${o.code} — ${o.name}`}</MenuItem>
@@ -154,7 +154,7 @@ export default function WeeklySectionByOutlet({
                     value={group.status ?? "pending"}
                     onChange={(e) => onStatusChange(gIdx, e.target.value as ReportStatus)}
                     disabled={readOnly}
-                    sx={{ minWidth: 150, "& .MuiInputBase-root": { backgroundColor: "#e8f5e9" }, "& .MuiOutlinedInput-input": { py: 0.5 } }}
+                    sx={{ minWidth: 150, width: { xs: "100%", sm: "auto" }, "& .MuiInputBase-root": { backgroundColor: "#e8f5e9" }, "& .MuiOutlinedInput-input": { py: 0.5 } }}
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
@@ -172,14 +172,14 @@ export default function WeeklySectionByOutlet({
                   )}
                 </Stack>
 
-                <Table size="small" sx={{ tableLayout: "fixed", "& td, & th": { py: 0.5, px: 0.75, verticalAlign: "middle" } }}>
+                <Table size="small" sx={{ minWidth: 520, tableLayout: { xs: "auto", sm: "fixed" }, "& td, & th": { py: 0.5, px: 0.75, verticalAlign: "middle" } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: "34%" }}>Item</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: "16%" }} align="center">Order</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: "16%" }} align="center">Sold</TableCell>
-                      <TableCell sx={{ fontWeight: 600, width: "16%" }} align="right">Deposit</TableCell>
-                      {!readOnly && <TableCell sx={{ width: 48 }} align="center" />}
+                      <TableCell sx={{ fontWeight: 600, width: { xs: "auto", sm: "34%" } }}>Item</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: { xs: "auto", sm: "16%" } }} align="center">Order</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: { xs: "auto", sm: "16%" } }} align="center">Sold</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: { xs: "auto", sm: "16%" } }} align="right">Deposit</TableCell>
+                      {!readOnly && <TableCell sx={{ width: { xs: 40, sm: 48 } }} align="center" />}
                     </TableRow>
                   </TableHead>
                   <TableBody>

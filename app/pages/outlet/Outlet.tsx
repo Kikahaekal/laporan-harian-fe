@@ -174,14 +174,19 @@ export default function Outlet() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1100, margin: "0 auto" }}>
+    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} flexWrap="wrap" gap={1}>
         <Typography variant="h5" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <StoreIcon color="primary" /> Data Outlet
           <Chip label={`${outlets.length} outlet`} size="small" variant="outlined" sx={{ ml: 1 }} />
         </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenAdd}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleOpenAdd}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
+        >
           Tambah Outlet
         </Button>
       </Stack>
@@ -193,13 +198,13 @@ export default function Outlet() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-        sx={{ mb: 2, width: 300 }}
+        sx={{ mb: 1.5, width: { xs: "100%", sm: 300 } }}
       />
 
       {/* Tabel */}
       <Paper elevation={2}>
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ overflowX: "auto" }}>
+          <Table sx={{ minWidth: 760 }}>
             <TableHead sx={{ bgcolor: "primary.main" }}>
               <TableRow>
                 <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>
@@ -284,24 +289,24 @@ export default function Outlet() {
                 {VISIT_DAYS.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
               </Select>
             </FormControl>
-            <Stack direction="row" spacing={1} alignItems="flex-start" flexWrap="wrap">
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start" flexWrap="wrap">
               <TextField
                 label="Latitude" size="small"
                 value={formData.coor_latitude === "" ? "" : formData.coor_latitude}
                 inputProps={{ readOnly: true }}
-                sx={{ flex: "1 1 120px" }}
+                sx={{ flex: "1 1 120px", width: { xs: "100%", sm: "auto" } }}
               />
               <TextField
                 label="Longitude" size="small"
                 value={formData.coor_longitude === "" ? "" : formData.coor_longitude}
                 inputProps={{ readOnly: true }}
-                sx={{ flex: "1 1 120px" }}
+                sx={{ flex: "1 1 120px", width: { xs: "100%", sm: "auto" } }}
               />
               <Button
                 variant="outlined"
                 startIcon={<LocationOnIcon />}
                 onClick={() => setMapPickerOpen(true)}
-                sx={{ alignSelf: "center" }}
+                sx={{ alignSelf: "center", width: { xs: "100%", sm: "auto" } }}
               >
                 Pilih Peta
               </Button>

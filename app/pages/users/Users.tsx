@@ -235,14 +235,19 @@ export default function Users() {
     const deleteTarget = users.find((u) => u.id === deleteId);
 
     return (
-        <Box sx={{ p: 3, maxWidth: 980, margin: "0 auto" }}>
+        <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 980, margin: "0 auto" }}>
             {/* Header */}
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={1}>
+            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} flexWrap="wrap" gap={1}>
                 <Typography variant="h5" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <ManageAccountsIcon color="primary" /> Manajemen Pengguna
                     <Chip label={`${users.length} user`} size="small" variant="outlined" sx={{ ml: 1 }} />
                 </Typography>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenAdd}>
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenAdd}
+                    sx={{ width: { xs: "100%", sm: "auto" } }}
+                >
                     Tambah Pengguna
                 </Button>
             </Stack>
@@ -259,13 +264,13 @@ export default function Users() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-                sx={{ mb: 2, width: 300 }}
+                sx={{ mb: 1.5, width: { xs: "100%", sm: 300 } }}
             />
 
             {/* Tabel */}
             <Paper elevation={2}>
-                <TableContainer>
-                    <Table>
+                <TableContainer sx={{ overflowX: "auto" }}>
+                    <Table sx={{ minWidth: 700 }}>
                         <TableHead sx={{ bgcolor: "primary.main" }}>
                             <TableRow>
                                 <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>
@@ -329,7 +334,7 @@ export default function Users() {
                 <DialogContent>
                     {/* Tambah outlet */}
                     <Typography variant="subtitle2" fontWeight={600} mb={1}>Assign Outlet Baru</Typography>
-                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
                         <Autocomplete
                             fullWidth
                             options={availableOutlets}
@@ -345,7 +350,7 @@ export default function Users() {
                             color="success"
                             onClick={handleAssignOutlet}
                             disabled={!selectedOutlet}
-                            sx={{ whiteSpace: "nowrap", minWidth: 90 }}
+                            sx={{ whiteSpace: "nowrap", minWidth: 90, width: { xs: "100%", sm: "auto" } }}
                         >
                             Assign
                         </Button>

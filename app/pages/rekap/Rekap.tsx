@@ -128,10 +128,13 @@ export default function Rekap() {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 800, margin: "0 auto" }}>
-      <Typography variant="h4" fontWeight="bold" mb={3} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <FolderIcon fontSize="large" color="primary" /> Rekap Laporan
-      </Typography>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 800, margin: "0 auto" }}>
+      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} mb={3}>
+        <FolderIcon fontSize="large" color="primary" />
+        <Typography variant="h4" fontWeight="bold">
+          Rekap Laporan
+        </Typography>
+      </Stack>
 
       {loading && (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
@@ -164,8 +167,8 @@ export default function Rekap() {
                       {idx > 0 && <Divider />} 
                       
                       <ListItemButton onClick={() => handleMonthClick(year, monthIndex)}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 1 }}>
-                            <CalendarMonthIcon color="action" sx={{ mr: 2 }} />
+                        <Box sx={{ display: 'flex', alignItems: { xs: "flex-start", sm: "center" }, width: '100%', flexWrap: 'wrap', gap: 1, flexDirection: { xs: "column", sm: "row" } }}>
+                            <CalendarMonthIcon color="action" sx={{ mr: { xs: 0, sm: 2 } }} />
                             
                             <ListItemText 
                               primary={MONTHS[monthIndex - 1]} 
@@ -173,7 +176,7 @@ export default function Rekap() {
                             />
 
                             {statusByPeriod[`${year}-${monthIndex}`] && (
-                              <Stack direction="row" spacing={0.5} flexWrap="wrap" sx={{ flex: 1, justifyContent: 'flex-end' }}>
+                              <Stack direction={{ xs: "column", sm: "row" }} spacing={0.5} flexWrap="wrap" sx={{ flex: 1, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
                                 {statusByPeriod[`${year}-${monthIndex}`].pending > 0 && (
                                   <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].pending} Pending`} color="warning" variant="outlined" />
                                 )}

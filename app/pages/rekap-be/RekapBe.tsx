@@ -147,10 +147,10 @@ export default function RekapBe() {
     const years = Object.keys(grouped).map(Number).sort((a, b) => b - a);
 
     return (
-        <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 960, margin: "0 auto" }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 960, margin: "0 auto" }}>
 
             {/* ── Page Header ── */}
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
+            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1.5} mb={1} flexWrap="wrap">
                 <BarChartIcon color="primary" sx={{ fontSize: 32 }} />
                 <Box>
                     <Typography variant="h5" fontWeight="bold" lineHeight={1.2}>Rekap Kanvas</Typography>
@@ -176,7 +176,7 @@ export default function RekapBe() {
                     <Typography variant="subtitle2" fontWeight={700} color="text.secondary" mb={1}>
                         📅 Bulan Berjalan — {MONTHS[currentMonth - 1]} {currentYear}
                     </Typography>
-                    <Stack direction="row" spacing={1.5} flexWrap="wrap">
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} flexWrap="wrap">
                         <SummaryCard
                             icon={<ReceiptLongIcon fontSize="small" color="action" />}
                             label="Total Nota"
@@ -265,7 +265,7 @@ export default function RekapBe() {
                     </Stack>
 
                     {/* Tabel bulan */}
-                    <TableContainer>
+                    <TableContainer sx={{ overflowX: "auto" }}>
                         <Table size="small">
                             <TableHead>
                                 <TableRow sx={{ bgcolor: "grey.50" }}>

@@ -138,10 +138,11 @@ function DroppingItemTable({
 
     return (
         <>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: "auto" }}>
                 <Table
                     size="small"
                     sx={{
+                        minWidth: 520,
                         "& td, & th": { py: 0.5, px: 0.75, fontSize: "0.75rem" },
                         "& .MuiInputBase-root": { fontSize: "0.75rem" },
                     }}
@@ -227,10 +228,11 @@ function DroppingItemTable({
 
 function InvoicedItemTable({ items }: { items: SaleItem[] }) {
     return (
-        <TableContainer>
+        <TableContainer sx={{ overflowX: "auto" }}>
             <Table
                 size="small"
                 sx={{
+                    minWidth: 520,
                     "& td, & th": { py: 0.5, px: 0.75, fontSize: "0.75rem" },
                 }}
             >
@@ -375,8 +377,8 @@ function NotaCard({
             >
                 {/* ── Header nota ── */}
                 <Stack
-                    direction="row"
-                    alignItems="center"
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ xs: "flex-start", sm: "center" }}
                     spacing={1}
                     sx={{
                         px: 1.25, py: 0.6,
@@ -413,7 +415,11 @@ function NotaCard({
                         />
                     )}
                     {sale.user && (
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: "auto !important" }}>
+                        <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ ml: { xs: 0, sm: "auto !important" }, width: { xs: "100%", sm: "auto" } }}
+                        >
                             Sales: {sale.user.name}
                         </Typography>
                     )}
@@ -427,7 +433,12 @@ function NotaCard({
                 </Stack>
 
                 <Box sx={{ px: 1.25, py: 0.6, bgcolor: "grey.50", borderBottom: "1px solid", borderColor: "divider" }}>
-                    <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                    <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        flexWrap="wrap"
+                    >
                         <Typography variant="caption" color="text.secondary">
                             {items.length} item
                         </Typography>
@@ -488,7 +499,7 @@ function NotaCard({
                     ) : (
                         // INVOICED: Deposit | Total sejajar, catatan di bawah
                         <Stack spacing={0.5}>
-                            <Stack direction="row" spacing={3} alignItems="center">
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
                                 <Stack direction="row" spacing={0.75} alignItems="baseline">
                                     <Typography variant="body2" color="text.secondary">Deposit:</Typography>
                                     <Typography variant="body1" fontWeight={700} color="success.dark">
@@ -876,11 +887,11 @@ export default function LaporanTerpadu() {
     const countInvoiced = allSales.filter((s) => s.status === "INVOICED").length;
 
     return (
-        <Box sx={{ p: { xs: 1.5, md: 2 }, maxWidth: 1100, mx: "auto" }}>
+        <Box sx={{ p: { xs: 1.25, sm: 1.5, md: 2 }, maxWidth: 1100, mx: "auto" }}>
             {/* ── Page Header ── */}
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={2} flexWrap="wrap">
+            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1.5} mb={2} flexWrap="wrap">
                 <EventNoteIcon color="primary" fontSize="large" />
-                <Box sx={{ flex: 1 }}>
+                <Box sx={{ flex: 1, width: { xs: "100%", sm: "auto" } }}>
                     <Typography variant="h6" fontWeight={700}>Monitor Nota</Typography>
                     <Typography variant="caption" color="text.secondary">
                         Pantau dan kelola nota dropping &amp; invoice per hari kunjungan
@@ -891,16 +902,17 @@ export default function LaporanTerpadu() {
                     startIcon={<SummarizeIcon />}
                     onClick={() => navigate(`/rekap-be?month=${month}&year=${year}`)}
                     size="small"
+                    sx={{ width: { xs: "100%", sm: "auto" } }}
                 >
                     Rekap Bulanan
                 </Button>
             </Stack>
 
             {/* ── Filter Bulan + Tahun ── */}
-            <Paper variant="outlined" sx={{ px: 2, py: 1.5, mb: 2 }}>
-                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <Paper variant="outlined" sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 2 }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ xs: "stretch", md: "center" }} flexWrap="wrap">
                     <CalendarMonthIcon color="action" fontSize="small" />
-                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <FormControl size="small" sx={{ minWidth: 140, width: { xs: "100%", sm: "auto" } }}>
                         <InputLabel>Bulan</InputLabel>
                         <Select label="Bulan" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
                             {MONTHS.map((nama, i) => (
@@ -908,7 +920,7 @@ export default function LaporanTerpadu() {
                             ))}
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <FormControl size="small" sx={{ minWidth: 100, width: { xs: "100%", sm: "auto" } }}>
                         <InputLabel>Tahun</InputLabel>
                         <Select label="Tahun" value={year} onChange={(e) => setYear(Number(e.target.value))}>
                             {buildYears().map((y) => (
@@ -916,7 +928,7 @@ export default function LaporanTerpadu() {
                             ))}
                         </Select>
                     </FormControl>
-                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                    <FormControl size="small" sx={{ minWidth: 130, width: { xs: "100%", sm: "auto" } }}>
                         <InputLabel>Minggu</InputLabel>
                         <Select label="Minggu" value={week} onChange={(e) => setWeek(Number(e.target.value))}>
                             <MenuItem value={0}>Semua Minggu</MenuItem>
@@ -926,9 +938,9 @@ export default function LaporanTerpadu() {
                             <MenuItem value={4}>Minggu 4 (tgl 22–akhir)</MenuItem>
                         </Select>
                     </FormControl>
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: { xs: "100%", md: 0 } }} />
                     {!loading && !loadingOutlets && (
-                        <Stack direction="row" spacing={1}>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} flexWrap="wrap">
                             <Chip icon={<StorefrontIcon fontSize="small" />} label={`${outlets.length} outlet`} size="small" variant="outlined" />
                             {countDropping > 0 && <Chip label={`${countDropping} DROPPING`} size="small" color="warning" />}
                             {countInvoiced > 0 && (
@@ -959,15 +971,15 @@ export default function LaporanTerpadu() {
                                         <Badge badgeContent={cnt} color="primary" sx={{ pr: 1 }}>{d}</Badge>
                                     ) : d
                                 }
-                                sx={{ fontWeight: 700, minHeight: 44, py: 1 }}
+                                sx={{ fontWeight: 700, minHeight: 44, py: 1, fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
                             />
                         );
                     })}
                 </Tabs>
                 <Stack
-                    direction="row"
+                    direction={{ xs: "column", sm: "row" }}
                     spacing={1}
-                    alignItems="center"
+                    alignItems={{ xs: "flex-start", sm: "center" }}
                     sx={{ px: 2, py: 1, bgcolor: "primary.50", borderBottom: "1px solid", borderColor: "divider" }}
                 >
                     <Typography variant="caption" fontWeight={600} color="primary.main">

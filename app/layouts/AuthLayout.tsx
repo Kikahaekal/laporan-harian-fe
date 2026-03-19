@@ -23,7 +23,7 @@ export default function AuthLayout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <MenuAppBar />
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <Outlet />
       </div>
     </div>
