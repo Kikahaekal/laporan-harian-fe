@@ -82,28 +82,35 @@ export default function RekapBe() {
         setLoading(true);
         const periods = getLast12Months();
 
-        const results = await Promise.all(
-          periods.map(async ({ year, month }) => {
-            const lastDay = new Date(year, month, 0).getDate();
-            const from = `${year}-${pad2(month)}-01`;
-            const to = `${year}-${pad2(month)}-${pad2(lastDay)}`;
-            try {
-              const res = await apiBe.get("/api/web/sales", { params: { from, to, per_page: 500 } });
-              const raw = res.data;
-              const notas: Sale[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
-              const dropping = notas.filter((n) => n.status === "DROPPING").length;
-              const invoiced = notas.filter((n) => n.status === "INVOICED").length;
-              const grandTotal = notas.reduce((s, n) => s + Number(n.grand_total || 0), 0);
-              const totalDeposit = notas.reduce((s, n) => s + Number(n.deposit || 0), 0);
-              return { year, month, total: notas.length, dropping, invoiced, grandTotal, totalDeposit, hasData: notas.length > 0 };
-            } catch {
-              return { year, month, total: 0, dropping: 0, invoiced: 0, grandTotal: 0, totalDeposit: 0, hasData: false };
-            }
-          })
-        );
+        const allResults: { year: number; month: number; total: number; dropping: number; invoiced: number; grandTotal: number; totalDeposit: number; hasData: boolean }[] = [];
+        const BATCH_SIZE = 3;
+
+        for (let i = 0; i < periods.length; i += BATCH_SIZE) {
+          const batch = periods.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async ({ year, month }) => {
+              const lastDay = new Date(year, month, 0).getDate();
+              const from = `${year}-${pad2(month)}-01`;
+              const to = `${year}-${pad2(month)}-${pad2(lastDay)}`;
+              try {
+                const res = await apiBe.get("/api/web/sales", { params: { from, to, per_page: 500 } });
+                const raw = res.data;
+                const notas: Sale[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+                const dropping = notas.filter((n) => n.status === "DROPPING").length;
+                const invoiced = notas.filter((n) => n.status === "INVOICED").length;
+                const grandTotal = notas.reduce((s, n) => s + Number(n.grand_total || 0), 0);
+                const totalDeposit = notas.reduce((s, n) => s + Number(n.deposit || 0), 0);
+                return { year, month, total: notas.length, dropping, invoiced, grandTotal, totalDeposit, hasData: notas.length > 0 };
+              } catch {
+                return { year, month, total: 0, dropping: 0, invoiced: 0, grandTotal: 0, totalDeposit: 0, hasData: false };
+              }
+            })
+          );
+          allResults.push(...batchResults);
+        }
 
         // Hanya tampilkan bulan yang ada datanya
-        const withData = results.filter((r) => r.hasData);
+        const withData = allResults.filter((r) => r.hasData);
 
         // Group per tahun
         const g: GroupedSummary = {};

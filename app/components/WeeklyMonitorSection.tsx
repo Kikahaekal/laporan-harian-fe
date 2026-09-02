@@ -97,21 +97,29 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     if (outletList.length === 0) return;
     setLoading(true);
     try {
-      const results = await Promise.all(
-        outletList.map(async (o) => {
-          try {
-            const droppingRes = await apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "DROPPING", per_page: 100 } });
-            const droppingSales: Sale[] = droppingRes.data?.data ?? [];
-            const invoicedRes = await apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "INVOICED", from: fromDate, to: toDate, per_page: 100 } });
-            const invoicedSales: Sale[] = invoicedRes.data?.data ?? [];
-            return { outlet_id: o.id, sales: [...droppingSales, ...invoicedSales] };
-          } catch {
-            return { outlet_id: o.id, sales: [] };
-          }
-        })
-      );
       const map: Record<number, Sale[]> = {};
-      results.forEach(({ outlet_id, sales }) => { map[outlet_id] = sales; });
+      const BATCH_SIZE = 3; // Batasi 3 outlet bersamaan agar server tidak kewalahan
+
+      for (let i = 0; i < outletList.length; i += BATCH_SIZE) {
+        const batch = outletList.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (o) => {
+            try {
+              const [droppingRes, invoicedRes] = await Promise.all([
+                apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "DROPPING", per_page: 100 } }),
+                apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "INVOICED", from: fromDate, to: toDate, per_page: 100 } }),
+              ]);
+              const droppingSales: Sale[] = droppingRes.data?.data ?? [];
+              const invoicedSales: Sale[] = invoicedRes.data?.data ?? [];
+              return { outlet_id: o.id, sales: [...droppingSales, ...invoicedSales] };
+            } catch {
+              return { outlet_id: o.id, sales: [] };
+            }
+          })
+        );
+        batchResults.forEach(({ outlet_id, sales }) => { map[outlet_id] = sales; });
+      }
+
       setSalesMap(map);
     } catch (err) {
       console.error("Gagal load sales", err);

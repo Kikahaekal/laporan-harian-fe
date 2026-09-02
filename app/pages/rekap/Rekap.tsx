@@ -93,26 +93,32 @@ export default function Rekap() {
 
     const fetchStatusForPeriods = async () => {
       try {
-        const results = await Promise.all(
-          periods.map(({ year, month }) =>
-            apiBe.get("/api/web/sales-reports", { params: { year, month } }).then((res) => ({
-              year,
-              month,
-              rows: res.data as { status?: string }[],
-            }))
-          )
-        );
         const next: Record<string, StatusCount> = {};
-        results.forEach(({ year, month, rows }) => {
-          const key = `${year}-${month}`;
-          next[key] = { pending: 0, approved: 0, rejected: 0 };
-          rows.forEach((row) => {
-            const s = row.status ?? "pending";
-            if (s === "pending") next[key].pending += 1;
-            else if (s === "approved") next[key].approved += 1;
-            else next[key].rejected += 1;
+        const BATCH_SIZE = 3;
+
+        for (let i = 0; i < periods.length; i += BATCH_SIZE) {
+          const batch = periods.slice(i, i + BATCH_SIZE);
+          const results = await Promise.all(
+            batch.map(({ year, month }) =>
+              apiBe.get("/api/web/sales-reports", { params: { year, month } }).then((res) => ({
+                year,
+                month,
+                rows: res.data as { status?: string }[],
+              }))
+            )
+          );
+          results.forEach(({ year, month, rows }) => {
+            const key = `${year}-${month}`;
+            next[key] = { pending: 0, approved: 0, rejected: 0 };
+            rows.forEach((row) => {
+              const s = row.status ?? "pending";
+              if (s === "pending") next[key].pending += 1;
+              else if (s === "approved") next[key].approved += 1;
+              else next[key].rejected += 1;
+            });
           });
-        });
+        }
+
         setStatusByPeriod(next);
       } catch (err) {
         console.error("Gagal ambil ringkasan status:", err);
