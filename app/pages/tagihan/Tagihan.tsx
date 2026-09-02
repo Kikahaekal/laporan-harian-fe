@@ -1,498 +1,540 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-    Box, Typography, Paper, Alert, Chip, Stack,
-    Skeleton, Table, TableHead, TableRow, TableCell,
-    TableBody, TableContainer, IconButton, Tooltip,
-    Divider, Card, CardContent, TextField, Dialog,
-    DialogTitle, DialogContent, DialogActions,
-    Button, InputAdornment, FormControl, InputLabel,
-    Select, MenuItem, Snackbar,
-} from "@mui/material";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import EditIcon from "@mui/icons-material/Edit";
-import SearchIcon from "@mui/icons-material/Search";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+  Wallet,
+  Receipt,
+  DollarSign,
+  CheckCircle,
+  AlertTriangle,
+  Edit2,
+  Search,
+  X,
+  AlertCircle,
+  Loader2
+} from "lucide-react";
+import { useSearchParams } from "react-router";
 import apiBe from "../../lib/axiosBe";
 import { MONTHS, type Sale, type PaymentStatus } from "../data/constant";
+import { Pagination } from "../../components/Pagination";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmtRp = (v: number | string) =>
-    "Rp " + Number(v).toLocaleString("id-ID");
+  "Rp " + Number(v).toLocaleString("id-ID");
 
 const PAYMENT_STATUS_CONFIG: Record<
-    PaymentStatus,
-    { label: string; color: "success" | "warning" | "error"; icon: React.ReactNode }
+  PaymentStatus,
+  { label: string; colorClass: string; icon: React.ReactNode }
 > = {
-    LUNAS: { label: "Lunas", color: "success", icon: <CheckCircleIcon fontSize="small" /> },
-    CICILAN: { label: "Cicilan", color: "warning", icon: <WarningAmberIcon fontSize="small" /> },
-    BELUM_LUNAS: { label: "Belum Lunas", color: "error", icon: <ReceiptLongIcon fontSize="small" /> },
+  LUNAS: { label: "Lunas", colorClass: "bg-emerald-100 text-emerald-800 border-emerald-200", icon: <CheckCircle className="w-3.5 h-3.5" /> },
+  CICILAN: { label: "Cicilan", colorClass: "bg-amber-100 text-amber-800 border-amber-200", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  BELUM_LUNAS: { label: "Belum Lunas", colorClass: "bg-red-100 text-red-800 border-red-200", icon: <Receipt className="w-3.5 h-3.5" /> },
 };
 
 function PaymentChip({ status }: { status: PaymentStatus | null }) {
-    const cfg = PAYMENT_STATUS_CONFIG[status ?? "BELUM_LUNAS"];
-    return (
-        <Chip
-            icon={cfg.icon as any}
-            label={cfg.label}
-            color={cfg.color}
-            size="small"
-            sx={{ fontWeight: 700 }}
-        />
-    );
+  const cfg = PAYMENT_STATUS_CONFIG[status ?? "BELUM_LUNAS"];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm ${cfg.colorClass}`}>
+      {cfg.icon} {cfg.label}
+    </span>
+  );
 }
 
-function SummaryCard({ icon, label, value, sub, color = "text.primary" }: {
-    icon: React.ReactNode; label: string; value: string | number; sub?: string; color?: string;
+function SummaryCard({ icon, label, value, sub, colorClass = "text-gray-900" }: {
+  icon: React.ReactNode; label: string; value: string | number; sub?: string; colorClass?: string;
 }) {
-    return (
-        <Card
-            variant="outlined"
-            sx={{ flex: { xs: "0 0 auto", sm: "1 1 150px" }, minWidth: { xs: 0, sm: 130 } }}
-        >
-            <CardContent
-                sx={{
-                    py: { xs: 0.75, sm: 0.75 },
-                    px: { xs: 1, sm: 1.25 },
-                    "&:last-child": { pb: { xs: 0.75, sm: 0.75 } },
-                }}
-            >
-                <Stack spacing={0.35}>
-                    <Stack direction="row" alignItems="center" spacing={0.75}>
-                        {icon}
-                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ lineHeight: 1, fontSize: { xs: "0.68rem", sm: "0.75rem" } }}>
-                            {label}
-                        </Typography>
-                    </Stack>
-                    <Typography
-                        variant="subtitle1"
-                        fontWeight={700}
-                        color={color}
-                        lineHeight={1}
-                        sx={{ fontSize: { xs: "0.9rem", sm: "1rem" } }}
-                    >
-                        {value}
-                    </Typography>
-                    {sub && (
-                        <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1, fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>
-                            {sub}
-                        </Typography>
-                    )}
-                </Stack>
-            </CardContent>
-        </Card>
-    );
+  return (
+    <div className="flex-1 min-w-[140px] bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="p-2 rounded-xl bg-gray-50 border border-gray-100">
+          {icon}
+        </div>
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+      </div>
+      <div className={`text-2xl font-black ${colorClass} mb-1`}>{value}</div>
+      {sub && <div className="text-xs text-gray-500 font-medium">{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Component: Dialog Modal ─────────────────────────────────────────────────
+function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100]" onClick={onClose} />
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm pointer-events-auto flex flex-col max-h-full">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="font-bold text-gray-900 text-lg flex items-center gap-2">{title}</div>
+            <button onClick={onClose} className="text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full p-1.5 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-5 overflow-y-auto">
+            {children}
+          </div>
+          {actions && (
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50/50 rounded-b-2xl">
+              {actions}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Component: Toast Notification ───────────────────────────────────────────
+function Toast({ open, msg, type, onClose }: { open: boolean; msg: string; type: "success" | "error"; onClose: () => void }) {
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => onClose(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [open, onClose]);
+  
+  if (!open) return null;
+  const isError = type === "error";
+  
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4">
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border ${isError ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+        {isError ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+        <span className="text-sm font-medium">{msg}</span>
+        <button onClick={onClose} className={`ml-2 p-1 rounded-full ${isError ? 'hover:bg-red-100' : 'hover:bg-emerald-100'}`}>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Tagihan() {
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // ── Filters ──
-    const [filterStatus, setFilterStatus] = useState<string>("BELUM_LUNAS,CICILAN"); // default: belum lunas + cicilan
-    const [filterMonth, setFilterMonth] = useState<string>("");
-    const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
-    const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("q") || "");
+  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("q") ? "ALL" : "BELUM_LUNAS,CICILAN");
+  const [filterMonth, setFilterMonth] = useState<string>("");
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
 
-    // ── Dialog bayar ──
-    const [payDialog, setPayDialog] = useState<Sale | null>(null);
-    const [depositInput, setDepositInput] = useState("");
-    const [saving, setSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-    // ── Snackbar ──
-    const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
-        open: false, msg: "", severity: "success",
-    });
-    const showSnack = (msg: string, severity: "success" | "error" = "success") =>
-        setSnack({ open: true, msg, severity });
+  // ── Dialog bayar ──
+  const [payDialog, setPayDialog] = useState<Sale | null>(null);
+  const [depositInput, setDepositInput] = useState("");
+  const [saving, setSaving] = useState(false);
 
-    // ── Fetch ──
-    const fetchSales = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const params: Record<string, string> = { status: "INVOICED", per_page: "500" };
-            if (filterMonth) {
-                const y = filterYear || new Date().getFullYear().toString();
-                const lDay = new Date(Number(y), Number(filterMonth), 0).getDate();
-                params.from = `${y}-${filterMonth.padStart(2, "0")}-01`;
-                params.to = `${y}-${filterMonth.padStart(2, "0")}-${String(lDay).padStart(2, "0")}`;
-            } else if (filterYear) {
-                params.from = `${filterYear}-01-01`;
-                params.to = `${filterYear}-12-31`;
-            }
-            const res = await apiBe.get("/api/web/sales", { params });
-            const raw = res.data;
-            let list: Sale[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+  // ── Snackbar ──
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
+    open: false, msg: "", severity: "success",
+  });
+  const showSnack = (msg: string, severity: "success" | "error" = "success") =>
+    setSnack({ open: true, msg, severity });
 
-            // Filter payment_status di client (BE belum support filter ini)
-            if (filterStatus !== "ALL") {
-                const allowed = filterStatus.split(",");
-                list = list.filter((s) => {
-                    const ps = s.payment_status ?? "BELUM_LUNAS";
-                    return allowed.includes(ps);
-                });
-            }
+  // ── Fetch ──
+  const fetchSales = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, string> = { status: "INVOICED", per_page: "500" };
+      if (filterMonth) {
+        const y = filterYear || new Date().getFullYear().toString();
+        const lDay = new Date(Number(y), Number(filterMonth), 0).getDate();
+        params.from = `${y}-${filterMonth.padStart(2, "0")}-01`;
+        params.to = `${y}-${filterMonth.padStart(2, "0")}-${String(lDay).padStart(2, "0")}`;
+      } else if (filterYear) {
+        params.from = `${filterYear}-01-01`;
+        params.to = `${filterYear}-12-31`;
+      }
+      const res = await apiBe.get("/api/web/sales", { params });
+      const raw = res.data;
+      let list: Sale[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
 
-            // Filter search
-            if (search.trim()) {
-                const q = search.toLowerCase();
-                list = list.filter(
-                    (s) =>
-                        s.nota_number.toLowerCase().includes(q) ||
-                        (s.outlet?.name ?? "").toLowerCase().includes(q) ||
-                        (s.outlet?.code ?? "").toLowerCase().includes(q)
-                );
-            }
+      // Filter payment_status di client (BE belum support filter ini)
+      if (filterStatus !== "ALL") {
+        const allowed = filterStatus.split(",");
+        list = list.filter((s) => {
+          const ps = s.payment_status ?? "BELUM_LUNAS";
+          return allowed.includes(ps);
+        });
+      }
 
-            setSales(list);
-        } catch {
-            setError("Gagal memuat data tagihan.");
-        } finally {
-            setLoading(false);
-        }
-    }, [filterStatus, filterMonth, filterYear, search]);
+      // Filter search
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        list = list.filter(
+          (s) =>
+            s.nota_number.toLowerCase().includes(q) ||
+            (s.outlet?.name ?? "").toLowerCase().includes(q) ||
+            (s.outlet?.code ?? "").toLowerCase().includes(q)
+        );
+      }
 
-    useEffect(() => { fetchSales(); }, [fetchSales]);
+      setSales(list);
+    } catch {
+      setError("Gagal memuat data tagihan.");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStatus, filterMonth, filterYear, search]);
 
-    // ── Update pembayaran ──
-    const handleSavePayment = async () => {
-        if (!payDialog) return;
-        const dep = Number(depositInput);
-        if (isNaN(dep) || dep < 0) {
-            showSnack("Masukkan jumlah deposit yang valid.", "error");
-            return;
-        }
-        setSaving(true);
-        try {
-            await apiBe.patch(`/api/web/sales/${payDialog.id}/payment`, { deposit: dep });
-            showSnack("Status pembayaran berhasil diperbarui.");
-            setPayDialog(null);
-            await fetchSales();
-        } catch (err: any) {
-            showSnack(err.response?.data?.message || "Gagal menyimpan pembayaran.", "error");
-        } finally {
-            setSaving(false);
-        }
-    };
+  useEffect(() => { fetchSales(); }, [fetchSales]);
 
-    // ── Summary ──
-    const totalPiutang = sales.reduce((s, n) => {
-        const total = Number(n.grand_total) || 0;
-        const dep = Number(n.deposit) || 0;
-        return s + Math.max(0, total - dep);
-    }, 0);
-    const countBelumLunas = sales.filter((s) => (s.payment_status ?? "BELUM_LUNAS") === "BELUM_LUNAS").length;
-    const countCicilan = sales.filter((s) => s.payment_status === "CICILAN").length;
-    const countLunas = sales.filter((s) => s.payment_status === "LUNAS").length;
+  const totalPages = Math.ceil(sales.length / itemsPerPage);
+  const paginatedSales = sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // ── Year options ──
-    const currentYear = new Date().getFullYear();
-    const yearOptions = Array.from({ length: 3 }, (_, i) => currentYear - i);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, filterMonth, filterYear, search]);
 
-    return (
-        <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
+  // ── Update pembayaran ──
+  const handleSavePayment = async () => {
+    if (!payDialog) return;
+    const dep = Number(depositInput);
+    if (isNaN(dep) || dep < 0) {
+      showSnack("Masukkan jumlah deposit yang valid.", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiBe.patch(`/api/web/sales/${payDialog.id}/payment`, { deposit: dep });
+      showSnack("Status pembayaran berhasil diperbarui.");
+      setPayDialog(null);
+      await fetchSales();
+    } catch (err: any) {
+      showSnack(err.response?.data?.message || "Gagal menyimpan pembayaran.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-            {/* ── Header ── */}
-            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} mb={1} flexWrap="wrap">
-                <AccountBalanceWalletIcon color="primary" sx={{ fontSize: 32 }} />
-                <Box>
-                    <Typography variant="h5" fontWeight="bold" lineHeight={1.2}>Tagihan</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        Monitor status pembayaran invoice dari seluruh outlet
-                    </Typography>
-                </Box>
-            </Stack>
-            <Divider sx={{ mb: 2 }} />
+  // ── Summary ──
+  const totalPiutang = sales.reduce((s, n) => {
+    const total = Number(n.grand_total) || 0;
+    const dep = Number(n.deposit) || 0;
+    return s + Math.max(0, total - dep);
+  }, 0);
+  const countBelumLunas = sales.filter((s) => (s.payment_status ?? "BELUM_LUNAS") === "BELUM_LUNAS").length;
+  const countCicilan = sales.filter((s) => s.payment_status === "CICILAN").length;
+  const countLunas = sales.filter((s) => s.payment_status === "LUNAS").length;
 
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+  // ── Year options ──
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 3 }, (_, i) => currentYear - i);
 
-            {/* ── Summary Cards ── */}
-            {loading ? (
-                <Stack direction="row" spacing={1.5} mb={2.5} flexWrap="wrap">
-                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} variant="rounded" width={160} height={72} />)}
-                </Stack>
-            ) : (
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2} flexWrap="wrap">
-                    <SummaryCard
-                        icon={<ReceiptLongIcon fontSize="small" color="error" />}
-                        label="Belum Lunas"
-                        value={countBelumLunas}
-                        color="error.main"
-                        sub="nota"
-                    />
-                    <SummaryCard
-                        icon={<WarningAmberIcon fontSize="small" color="warning" />}
-                        label="Cicilan"
-                        value={countCicilan}
-                        color="warning.main"
-                        sub="nota"
-                    />
-                    <SummaryCard
-                        icon={<CheckCircleIcon fontSize="small" color="success" />}
-                        label="Lunas"
-                        value={countLunas}
-                        color="success.main"
-                        sub="nota"
-                    />
-                    <SummaryCard
-                        icon={<AttachMoneyIcon fontSize="small" color="primary" />}
-                        label="Total Piutang"
-                        value={fmtRp(totalPiutang)}
-                        color={totalPiutang > 0 ? "error.main" : "success.main"}
-                        sub="sisa belum dibayar"
-                    />
-                </Stack>
-            )}
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3">
+        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm">
+          <Wallet className="w-7 h-7" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 leading-tight">Tagihan</h1>
+          <p className="text-sm text-gray-500 font-medium">Monitor status pembayaran invoice dari seluruh outlet</p>
+        </div>
+      </div>
 
-            {/* ── Filter Bar ── */}
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={0.75} mb={1.5} flexWrap="wrap">
-                <TextField
-                    size="small"
-                    placeholder="Cari nota / outlet..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{ width: { xs: "100%", sm: 220 } }}
-                    InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-                />
-                <FormControl size="small" sx={{ minWidth: 170, width: { xs: "100%", sm: "auto" } }}>
-                    <InputLabel>Status Bayar</InputLabel>
-                    <Select
-                        label="Status Bayar"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
+      {error && (
+        <div className="p-4 bg-red-50 text-red-800 rounded-xl border border-red-200 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{error}</p>
+        </div>
+      )}
+
+      {/* ── Summary Cards ── */}
+      {loading ? (
+        <div className="flex flex-wrap gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex-1 min-w-[140px] bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-16 mb-4"></div>
+              <div className="h-8 bg-gray-200 rounded w-24 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-20"></div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-4">
+          <SummaryCard
+            icon={<Receipt className="w-5 h-5 text-red-500" />}
+            label="Belum Lunas"
+            value={countBelumLunas}
+            colorClass="text-red-600"
+            sub="nota"
+          />
+          <SummaryCard
+            icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
+            label="Cicilan"
+            value={countCicilan}
+            colorClass="text-amber-600"
+            sub="nota"
+          />
+          <SummaryCard
+            icon={<CheckCircle className="w-5 h-5 text-emerald-500" />}
+            label="Lunas"
+            value={countLunas}
+            colorClass="text-emerald-600"
+            sub="nota"
+          />
+          <SummaryCard
+            icon={<DollarSign className="w-5 h-5 text-blue-500" />}
+            label="Total Piutang"
+            value={fmtRp(totalPiutang)}
+            colorClass={totalPiutang > 0 ? "text-red-600" : "text-emerald-600"}
+            sub="sisa belum dibayar"
+          />
+        </div>
+      )}
+
+      {/* ── Filter Bar ── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative w-full sm:w-72">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Cari nota / outlet..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm text-sm outline-none font-medium"
+          />
+        </div>
+        
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
+        >
+          <option value="BELUM_LUNAS,CICILAN">Belum Lunas / Cicilan</option>
+          <option value="BELUM_LUNAS">Belum Lunas</option>
+          <option value="CICILAN">Cicilan</option>
+          <option value="LUNAS">Lunas</option>
+          <option value="ALL">Semua</option>
+        </select>
+        
+        <select
+          value={filterYear}
+          onChange={(e) => setFilterYear(e.target.value)}
+          className="w-full sm:w-32 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
+        >
+          {yearOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+        </select>
+        
+        <select
+          value={filterMonth}
+          onChange={(e) => setFilterMonth(e.target.value)}
+          className="w-full sm:w-40 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
+        >
+          <option value="">Semua Bulan</option>
+          {MONTHS.map((m, i) => <option key={i} value={String(i + 1)}>{m}</option>)}
+        </select>
+      </div>
+
+      {/* ── Tabel Tagihan ── */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-blue-600 text-white text-sm">
+                <th className="px-5 py-4 font-bold whitespace-nowrap">No Nota</th>
+                <th className="px-5 py-4 font-bold">Outlet</th>
+                <th className="px-5 py-4 font-bold whitespace-nowrap">Tgl Transaksi</th>
+                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Total Tagihan</th>
+                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Deposit</th>
+                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Sisa Tagihan</th>
+                <th className="px-5 py-4 font-bold whitespace-nowrap">Status</th>
+                <th className="px-5 py-4 font-bold text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 8 }).map((_, j) => (
+                      <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-full"></div></td>
+                    ))}
+                  </tr>
+                ))
+              ) : paginatedSales.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-gray-500 font-medium text-base">
+                    {filterStatus.includes("BELUM_LUNAS") || filterStatus.includes("CICILAN")
+                      ? "🎉 Tidak ada tagihan yang belum lunas!"
+                      : "Tidak ada data yang sesuai filter."}
+                  </td>
+                </tr>
+              ) : (
+                paginatedSales.map((sale) => {
+                  const grandTotal = Number(sale.grand_total) || 0;
+                  const deposit = Number(sale.deposit) || 0;
+                  const sisa = Math.max(0, grandTotal - deposit);
+                  const ps = sale.payment_status ?? "BELUM_LUNAS";
+                  return (
+                    <tr
+                      key={sale.id}
+                      className={`hover:bg-blue-50/50 transition-colors ${
+                        ps === "BELUM_LUNAS" ? "bg-red-50/30" : ps === "CICILAN" ? "bg-amber-50/30" : ""
+                      }`}
                     >
-                        <MenuItem value="BELUM_LUNAS,CICILAN">Belum Lunas / Cicilan</MenuItem>
-                        <MenuItem value="BELUM_LUNAS">Belum Lunas</MenuItem>
-                        <MenuItem value="CICILAN">Cicilan</MenuItem>
-                        <MenuItem value="LUNAS">Lunas</MenuItem>
-                        <MenuItem value="ALL">Semua</MenuItem>
-                    </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 120, width: { xs: "100%", sm: "auto" } }}>
-                    <InputLabel>Tahun</InputLabel>
-                    <Select label="Tahun" value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
-                        {yearOptions.map((y) => <MenuItem key={y} value={String(y)}>{y}</MenuItem>)}
-                    </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 130, width: { xs: "100%", sm: "auto" } }}>
-                    <InputLabel>Bulan</InputLabel>
-                    <Select label="Bulan" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
-                        <MenuItem value="">Semua Bulan</MenuItem>
-                        {MONTHS.map((m, i) => <MenuItem key={i} value={String(i + 1)}>{m}</MenuItem>)}
-                    </Select>
-                </FormControl>
-            </Stack>
+                      <td className="px-5 py-3">
+                        <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
+                          {sale.nota_number}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        {sale.outlet ? (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-900">{sale.outlet.name}</span>
+                            <span className="text-xs text-gray-500">{sale.outlet.code}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">#{sale.outlet_id}</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 font-medium text-gray-600 whitespace-nowrap">
+                        {new Date(sale.transaction_date).toLocaleDateString("id-ID", {
+                          day: "2-digit", month: "short", year: "numeric"
+                        })}
+                      </td>
+                      <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                        {fmtRp(grandTotal)}
+                      </td>
+                      <td className="px-5 py-3 text-right whitespace-nowrap">
+                        <span className={`font-semibold ${deposit > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                          {deposit > 0 ? fmtRp(deposit) : "—"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right whitespace-nowrap">
+                        <span className={`font-black ${sisa > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {sisa > 0 ? fmtRp(sisa) : "✓ Lunas"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 whitespace-nowrap">
+                        <PaymentChip status={ps as PaymentStatus} />
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <button
+                          onClick={() => {
+                            setPayDialog(sale);
+                            setDepositInput(String(deposit));
+                          }}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors"
+                          title="Update Pembayaran"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {!loading && sales.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={sales.length}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
+      </div>
 
-            {/* ── Tabel Tagihan ── */}
-            <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-                <TableContainer sx={{ overflowX: "auto" }}>
-                    <Table size="small" sx={{ minWidth: 900 }}>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: "primary.main" }}>
-                                {["No Nota", "Outlet", "Tgl Transaksi", "Total Tagihan", "Deposit", "Sisa Tagihan", "Status", "Aksi"].map((h) => (
-                                    <TableCell key={h} sx={{ color: "white", fontWeight: 700, whiteSpace: "nowrap" }}
-                                        align={["Total Tagihan", "Deposit", "Sisa Tagihan"].includes(h) ? "right" : "left"}
-                                    >
-                                        {h}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
-                                    <TableRow key={i}>
-                                        {Array.from({ length: 8 }).map((_, j) => (
-                                            <TableCell key={j}><Skeleton variant="text" /></TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : sales.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                                        {filterStatus.includes("BELUM_LUNAS") || filterStatus.includes("CICILAN")
-                                            ? "🎉 Tidak ada tagihan yang belum lunas!"
-                                            : "Tidak ada data yang sesuai filter."}
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                sales.map((sale) => {
-                                    const grandTotal = Number(sale.grand_total) || 0;
-                                    const deposit = Number(sale.deposit) || 0;
-                                    const sisa = Math.max(0, grandTotal - deposit);
-                                    const ps = sale.payment_status ?? "BELUM_LUNAS";
-                                    return (
-                                        <TableRow
-                                            key={sale.id}
-                                            hover
-                                            sx={{
-                                                bgcolor: ps === "BELUM_LUNAS" ? "error.50" : ps === "CICILAN" ? "warning.50" : "inherit",
-                                            }}
-                                        >
-                                            <TableCell>
-                                                <Typography variant="body2" fontFamily="monospace" fontWeight={600}>
-                                                    {sale.nota_number}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                {sale.outlet ? (
-                                                    <Stack>
-                                                        <Typography variant="body2" fontWeight={600}>{sale.outlet.name}</Typography>
-                                                        <Typography variant="caption" color="text.secondary">{sale.outlet.code}</Typography>
-                                                    </Stack>
-                                                ) : `#${sale.outlet_id}`}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography variant="body2" noWrap>
-                                                    {new Date(sale.transaction_date).toLocaleDateString("id-ID", {
-                                                        day: "2-digit", month: "short", year: "numeric"
-                                                    })}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Typography variant="body2" fontWeight={600}>{fmtRp(grandTotal)}</Typography>
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Typography
-                                                    variant="body2"
-                                                    color={deposit > 0 ? "success.main" : "text.disabled"}
-                                                    fontWeight={deposit > 0 ? 600 : 400}
-                                                >
-                                                    {deposit > 0 ? fmtRp(deposit) : "—"}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Typography
-                                                    variant="body2"
-                                                    fontWeight={700}
-                                                    color={sisa > 0 ? "error.main" : "success.main"}
-                                                >
-                                                    {sisa > 0 ? fmtRp(sisa) : "✓ Lunas"}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <PaymentChip status={ps as PaymentStatus} />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Tooltip title="Update Pembayaran">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="primary"
-                                                        onClick={() => {
-                                                            setPayDialog(sale);
-                                                            setDepositInput(String(deposit));
-                                                        }}
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
+      {/* ── Dialog Update Pembayaran ── */}
+      <Modal
+        open={payDialog !== null}
+        onClose={() => !saving && setPayDialog(null)}
+        title={<><Wallet className="w-5 h-5 text-blue-600" /> Update Pembayaran</>}
+        actions={
+          <>
+            <button onClick={() => setPayDialog(null)} disabled={saving} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+              Batal
+            </button>
+            <button onClick={handleSavePayment} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 transition-colors flex items-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan"}
+            </button>
+          </>
+        }
+      >
+        {payDialog && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-inner">
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase">Nota</p>
+                <p className="font-mono font-bold text-gray-900">{payDialog.nota_number}</p>
+              </div>
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase">Outlet</p>
+                <p className="font-bold text-gray-900">{payDialog.outlet?.name ?? `#${payDialog.outlet_id}`}</p>
+              </div>
+              <div className="flex gap-4 p-3 bg-white rounded-lg border border-gray-100">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Total Tagihan</p>
+                  <p className="font-black text-gray-900">{fmtRp(payDialog.grand_total)}</p>
+                </div>
+                <div className="w-px bg-gray-200"></div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Sisa Tagihan</p>
+                  <p className="font-black text-red-600">
+                    {fmtRp(Math.max(0, Number(payDialog.grand_total) - Number(payDialog.deposit)))}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-            {/* ── Dialog Update Pembayaran ── */}
-            <Dialog open={payDialog !== null} onClose={() => !saving && setPayDialog(null)} maxWidth="xs" fullWidth>
-                <DialogTitle sx={{ pb: 1 }}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                        <AccountBalanceWalletIcon color="primary" />
-                        <span>Update Pembayaran</span>
-                    </Stack>
-                </DialogTitle>
-                <Divider />
-                <DialogContent sx={{ pt: 2 }}>
-                    {payDialog && (
-                        <Stack spacing={2}>
-                            <Box sx={{ bgcolor: "grey.50", borderRadius: 1, p: 1.5 }}>
-                                <Typography variant="caption" color="text.secondary">Nota</Typography>
-                                <Typography variant="body2" fontWeight={700} fontFamily="monospace">{payDialog.nota_number}</Typography>
-                                <Typography variant="caption" color="text.secondary">Outlet: </Typography>
-                                <Typography variant="caption" fontWeight={600}>{payDialog.outlet?.name ?? `#${payDialog.outlet_id}`}</Typography>
-                                <Stack direction="row" spacing={2} mt={0.5}>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">Total Tagihan</Typography>
-                                        <Typography variant="body2" fontWeight={700}>{fmtRp(payDialog.grand_total)}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary">Sisa</Typography>
-                                        <Typography variant="body2" fontWeight={700} color="error.main">
-                                            {fmtRp(Math.max(0, Number(payDialog.grand_total) - Number(payDialog.deposit)))}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
-                            </Box>
+            <div>
+              <label className="block text-sm font-bold text-gray-900 mb-1.5">Jumlah Deposit / Pembayaran *</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 font-bold">Rp</span>
+                </div>
+                <input
+                  type="number"
+                  value={depositInput}
+                  onChange={(e) => setDepositInput(e.target.value)}
+                  onBlur={() => {
+                    const maxValue = Number(payDialog.grand_total) || 0;
+                    let value = Number(depositInput) || 0;
+                    if (value > maxValue) value = maxValue;
+                    value = Math.round(value / 100) * 100;
+                    setDepositInput(value.toString());
+                  }}
+                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg font-bold shadow-sm"
+                  min="0"
+                  max={Number(payDialog.grand_total) || undefined}
+                  step="500"
+                />
+              </div>
+              <p className="mt-2 text-sm font-medium">
+                {(() => {
+                  const dep = Number(depositInput) || 0;
+                  const total = Number(payDialog.grand_total) || 0;
+                  if (dep >= total) return <span className="text-emerald-600 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Status akan menjadi LUNAS</span>;
+                  if (dep > 0) return <span className="text-amber-600 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Status akan menjadi CICILAN</span>;
+                  return <span className="text-red-600 flex items-center gap-1"><Receipt className="w-4 h-4" /> Status akan menjadi BELUM LUNAS</span>;
+                })()}
+              </p>
+            </div>
+          </div>
+        )}
+      </Modal>
 
-                            <TextField
-                                label="Jumlah Deposit / Pembayaran *"
-                                type="number"
-                                fullWidth
-                                value={depositInput}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    setDepositInput(value);
-                                }}
-                                onBlur={() => {
-                                    const maxValue = Number(payDialog.grand_total) || 0;
-                                    let value = Number(depositInput) || 0;
-
-                                    // Batasi maksimal sesuai grand_total
-                                    if (value > maxValue) value = maxValue;
-
-                                    // Bulatkan ke kelipatan 1000
-                                    value = Math.round(value / 100) * 100;
-
-                                    setDepositInput(value.toString());
-                                }}
-                                InputProps={{
-                                    startAdornment: <InputAdornment position="start">Rp</InputAdornment>,
-                                }}
-                                inputProps={{
-                                    min: 0,
-                                    max: Number(payDialog.grand_total) || undefined,
-                                    step: 500,
-                                }}
-                                helperText={(() => {
-                                    const dep = Number(depositInput) || 0;
-                                    const total = Number(payDialog.grand_total) || 0;
-                                    if (dep >= total) return "✅ Status akan menjadi LUNAS";
-                                    if (dep > 0) return "⚠️ Status akan menjadi CICILAN";
-                                    return "❌ Status akan menjadi BELUM LUNAS";
-                                })()}
-                            />
-                        </Stack>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setPayDialog(null)} color="inherit" disabled={saving}>Batal</Button>
-                    <Button onClick={handleSavePayment} variant="contained" disabled={saving}>
-                        {saving ? "Menyimpan..." : "Simpan"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* ── Snackbar ── */}
-            <Snackbar
-                open={snack.open}
-                autoHideDuration={3000}
-                onClose={() => setSnack((s) => ({ ...s, open: false }))}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-            >
-                <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-                    {snack.msg}
-                </Alert>
-            </Snackbar>
-        </Box>
-    );
+      <Toast
+        open={snack.open}
+        msg={snack.msg}
+        type={snack.severity}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+      />
+    </div>
+  );
 }

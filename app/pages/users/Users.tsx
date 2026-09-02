@@ -1,492 +1,578 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-    Box,
-    Typography,
-    Button,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    CircularProgress,
-    Stack,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Chip,
-    Alert,
-    Snackbar,
-    InputAdornment,
-    Divider,
-    Tooltip,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    Autocomplete,
-} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
-import SearchIcon from "@mui/icons-material/Search";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
-import StoreIcon from "@mui/icons-material/Store";
-import LinkOffIcon from "@mui/icons-material/LinkOff";
+  Users as UsersIcon,
+  Plus,
+  Search,
+  Edit2,
+  Trash2,
+  Store,
+  Link2Off,
+  Eye,
+  EyeOff,
+  X,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  Info
+} from "lucide-react";
 import apiBe from "../../lib/axiosBe";
+import { TableRowsSkeleton } from "../../components/TableSkeleton";
+import { Pagination } from "../../components/Pagination";
 
 interface UserData {
-    id: number;
-    name: string;
-    email: string;
-    role?: string;
+  id: number;
+  name: string;
+  email: string;
+  role?: string;
 }
 
 interface OutletSimple {
-    id: number;
-    code: string;
-    name: string;
+  id: number;
+  code: string;
+  name: string;
 }
 
 const ROLES = ["admin", "sales"];
 const EMPTY_FORM = { name: "", email: "", password: "", role: "sales" };
 
+// ─── Component: Dialog Modal ─────────────────────────────────────────────────
+function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100]" onClick={onClose} />
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md pointer-events-auto flex flex-col max-h-full">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="font-bold text-gray-900 text-lg flex items-center gap-2">{title}</div>
+            <button onClick={onClose} className="text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full p-1.5 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-5 overflow-y-auto">
+            {children}
+          </div>
+          {actions && (
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50/50 rounded-b-2xl">
+              {actions}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Component: Toast Notification ───────────────────────────────────────────
+function Toast({ open, msg, type, onClose }: { open: boolean; msg: string; type: "success" | "error"; onClose: () => void }) {
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => onClose(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [open, onClose]);
+  
+  if (!open) return null;
+  const isError = type === "error";
+  
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4">
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border ${isError ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+        {isError ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+        <span className="text-sm font-medium">{msg}</span>
+        <button onClick={onClose} className={`ml-2 p-1 rounded-full ${isError ? 'hover:bg-red-100' : 'hover:bg-emerald-100'}`}>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Users() {
-    const [users, setUsers] = useState<UserData[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-    const [open, setOpen] = useState(false);
-    const [isEdit, setIsEdit] = useState(false);
-    const [editId, setEditId] = useState<number | null>(null);
-    const [formData, setFormData] = useState({ ...EMPTY_FORM });
-    const [saving, setSaving] = useState(false);
-    const [showPw, setShowPw] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
-    const [deleteId, setDeleteId] = useState<number | null>(null);
-    const [deleting, setDeleting] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-    // ── Assign Outlet state ────────────────────────────────────────────────────
-    const [outletDialogUser, setOutletDialogUser] = useState<UserData | null>(null);
-    const [allOutlets, setAllOutlets] = useState<OutletSimple[]>([]);
-    const [userOutlets, setUserOutlets] = useState<OutletSimple[]>([]);
-    const [selectedOutlet, setSelectedOutlet] = useState<OutletSimple | null>(null);
-    const [outletLoading, setOutletLoading] = useState(false);
+  // ── Assign Outlet state ────────────────────────────────────────────────────
+  const [outletDialogUser, setOutletDialogUser] = useState<UserData | null>(null);
+  const [allOutlets, setAllOutlets] = useState<OutletSimple[]>([]);
+  const [userOutlets, setUserOutlets] = useState<OutletSimple[]>([]);
+  const [selectedOutletId, setSelectedOutletId] = useState<string>("");
+  const [outletLoading, setOutletLoading] = useState(false);
 
-    const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
-        open: false, msg: "", severity: "success",
-    });
-    const showSnack = (msg: string, severity: "success" | "error" = "success") =>
-        setSnack({ open: true, msg, severity });
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
+    open: false, msg: "", severity: "success",
+  });
+  const showSnack = (msg: string, severity: "success" | "error" = "success") =>
+    setSnack({ open: true, msg, severity });
 
-    const fetchUsers = async () => {
-        try {
-            setLoading(true);
-            const res = await apiBe.get("/api/web/users");
-            const raw = res.data;
-            setUsers(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
-        } catch {
-            showSnack("Gagal memuat data pengguna.", "error");
-        } finally {
-            setLoading(false);
-        }
-    };
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const res = await apiBe.get("/api/web/users");
+      const raw = res.data;
+      setUsers(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+    } catch {
+      showSnack("Gagal memuat data pengguna.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const fetchAllOutlets = async () => {
-        try {
-            const res = await apiBe.get("/api/web/outlets");
-            const raw = res.data;
-            setAllOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
-        } catch { /* silent */ }
-    };
+  const fetchAllOutlets = async () => {
+    try {
+      const res = await apiBe.get("/api/web/outlets");
+      const raw = res.data;
+      setAllOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+    } catch { /* silent */ }
+  };
 
-    const fetchUserOutlets = useCallback(async (userId: number) => {
-        try {
-            setOutletLoading(true);
-            const res = await apiBe.get(`/api/web/outlets?user_id=${userId}`);
-            const raw = res.data;
-            setUserOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
-        } catch {
-            showSnack("Gagal memuat outlet user.", "error");
-        } finally {
-            setOutletLoading(false);
-        }
-    }, []);
+  const fetchUserOutlets = useCallback(async (userId: number) => {
+    try {
+      setOutletLoading(true);
+      const res = await apiBe.get(`/api/web/outlets?user_id=${userId}`);
+      const raw = res.data;
+      setUserOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+    } catch {
+      showSnack("Gagal memuat outlet user.", "error");
+    } finally {
+      setOutletLoading(false);
+    }
+  }, []);
 
-    useEffect(() => { fetchUsers(); fetchAllOutlets(); }, []);
+  useEffect(() => { fetchUsers(); fetchAllOutlets(); }, []);
 
-    const filtered = users.filter(
-        (u) =>
-            u.name.toLowerCase().includes(search.toLowerCase()) ||
-            u.email.toLowerCase().includes(search.toLowerCase())
-    );
+  const filtered = users.filter(
+    (u) =>
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase())
+  );
 
-    // ── User CRUD ──────────────────────────────────────────────────────────────
-    const handleOpenAdd = () => {
-        setIsEdit(false);
-        setFormData({ ...EMPTY_FORM });
-        setShowPw(false);
-        setOpen(true);
-    };
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedUsers = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    const handleOpenEdit = (user: UserData) => {
-        setIsEdit(true);
-        setEditId(user.id);
-        setFormData({ name: user.name, email: user.email, password: "", role: user.role ?? "sales" });
-        setShowPw(false);
-        setOpen(true);
-    };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
-    const handleSave = async () => {
-        if (!formData.name || !formData.email) {
-            showSnack("Nama dan email wajib diisi!", "error");
-            return;
-        }
-        if (!isEdit && !formData.password) {
-            showSnack("Password wajib diisi untuk pengguna baru!", "error");
-            return;
-        }
-        setSaving(true);
-        try {
-            const payload: Record<string, string> = {
-                name: formData.name,
-                email: formData.email,
-                role: formData.role,
-            };
-            if (formData.password) payload.password = formData.password;
+  // ── User CRUD ──────────────────────────────────────────────────────────────
+  const handleOpenAdd = () => {
+    setIsEdit(false);
+    setFormData({ ...EMPTY_FORM });
+    setShowPw(false);
+    setOpen(true);
+  };
 
-            if (isEdit && editId) {
-                await apiBe.put(`/api/web/users/${editId}`, payload);
-            } else {
-                await apiBe.post("/api/web/users", payload);
-            }
-            await fetchUsers();
-            setOpen(false);
-            showSnack(isEdit ? "Pengguna berhasil diperbarui." : "Pengguna berhasil ditambahkan.");
-        } catch (err: any) {
-            showSnack(err.response?.data?.message || "Gagal menyimpan pengguna.", "error");
-        } finally {
-            setSaving(false);
-        }
-    };
+  const handleOpenEdit = (user: UserData) => {
+    setIsEdit(true);
+    setEditId(user.id);
+    setFormData({ name: user.name, email: user.email, password: "", role: user.role ?? "sales" });
+    setShowPw(false);
+    setOpen(true);
+  };
 
-    const handleDelete = async () => {
-        if (!deleteId) return;
-        setDeleting(true);
-        try {
-            await apiBe.delete(`/api/web/users/${deleteId}`);
-            await fetchUsers();
-            setDeleteId(null);
-            showSnack("Pengguna berhasil dihapus.");
-        } catch {
-            showSnack("Gagal menghapus pengguna.", "error");
-        } finally {
-            setDeleting(false);
-        }
-    };
+  const handleSave = async () => {
+    if (!formData.name || !formData.email) {
+      showSnack("Nama dan email wajib diisi!", "error");
+      return;
+    }
+    if (!isEdit && !formData.password) {
+      showSnack("Password wajib diisi untuk pengguna baru!", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+      };
+      if (formData.password) payload.password = formData.password;
 
-    // ── Assign/Unassign Outlet ─────────────────────────────────────────────────
-    const openOutletDialog = (user: UserData) => {
-        setOutletDialogUser(user);
-        setSelectedOutlet(null);
-        fetchUserOutlets(user.id);
-    };
+      if (isEdit && editId) {
+        await apiBe.put(`/api/web/users/${editId}`, payload);
+      } else {
+        await apiBe.post("/api/web/users", payload);
+      }
+      await fetchUsers();
+      setOpen(false);
+      showSnack(isEdit ? "Pengguna berhasil diperbarui." : "Pengguna berhasil ditambahkan.");
+    } catch (err: any) {
+      showSnack(err.response?.data?.message || "Gagal menyimpan pengguna.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    const handleAssignOutlet = async () => {
-        if (!outletDialogUser || !selectedOutlet) return;
-        try {
-            await apiBe.post(`/api/web/users/${outletDialogUser.id}/outlets`, {
-                outlet_id: selectedOutlet.id,
-            });
-            setSelectedOutlet(null);
-            fetchUserOutlets(outletDialogUser.id);
-            showSnack(`Outlet "${selectedOutlet.name}" berhasil di-assign ke ${outletDialogUser.name}.`);
-        } catch (err: any) {
-            showSnack(err.response?.data?.message || "Gagal assign outlet.", "error");
-        }
-    };
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await apiBe.delete(`/api/web/users/${deleteId}`);
+      await fetchUsers();
+      setDeleteId(null);
+      showSnack("Pengguna berhasil dihapus.");
+    } catch {
+      showSnack("Gagal menghapus pengguna.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
-    const handleUnassignOutlet = async (outlet: OutletSimple) => {
-        if (!outletDialogUser) return;
-        try {
-            await apiBe.delete(`/api/web/users/${outletDialogUser.id}/outlets/${outlet.id}`);
-            fetchUserOutlets(outletDialogUser.id);
-            showSnack(`Outlet "${outlet.name}" berhasil di-unassign.`);
-        } catch {
-            showSnack("Gagal unassign outlet.", "error");
-        }
-    };
+  // ── Assign/Unassign Outlet ─────────────────────────────────────────────────
+  const openOutletDialog = (user: UserData) => {
+    setOutletDialogUser(user);
+    setSelectedOutletId("");
+    fetchUserOutlets(user.id);
+  };
 
-    // Outlet yang belum di-assign ke user ini
-    const availableOutlets = allOutlets.filter(
-        (o) => !userOutlets.some((uo) => uo.id === o.id)
-    );
+  const handleAssignOutlet = async () => {
+    if (!outletDialogUser || !selectedOutletId) return;
+    const selectedOutlet = availableOutlets.find(o => o.id.toString() === selectedOutletId);
+    if (!selectedOutlet) return;
+    
+    try {
+      await apiBe.post(`/api/web/users/${outletDialogUser.id}/outlets`, {
+        outlet_id: selectedOutlet.id,
+      });
+      setSelectedOutletId("");
+      fetchUserOutlets(outletDialogUser.id);
+      showSnack(`Outlet "${selectedOutlet.name}" berhasil di-assign ke ${outletDialogUser.name}.`);
+    } catch (err: any) {
+      showSnack(err.response?.data?.message || "Gagal assign outlet.", "error");
+    }
+  };
 
-    const deleteTarget = users.find((u) => u.id === deleteId);
+  const handleUnassignOutlet = async (outlet: OutletSimple) => {
+    if (!outletDialogUser) return;
+    try {
+      await apiBe.delete(`/api/web/users/${outletDialogUser.id}/outlets/${outlet.id}`);
+      fetchUserOutlets(outletDialogUser.id);
+      showSnack(`Outlet "${outlet.name}" berhasil di-unassign.`);
+    } catch {
+      showSnack("Gagal unassign outlet.", "error");
+    }
+  };
 
-    return (
-        <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 980, margin: "0 auto" }}>
-            {/* Header */}
-            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} flexWrap="wrap" gap={1}>
-                <Typography variant="h5" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <ManageAccountsIcon color="primary" /> Manajemen Pengguna
-                    <Chip label={`${users.length} user`} size="small" variant="outlined" sx={{ ml: 1 }} />
-                </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleOpenAdd}
-                    sx={{ width: { xs: "100%", sm: "auto" } }}
-                >
-                    Tambah Pengguna
-                </Button>
-            </Stack>
+  // Outlet yang belum di-assign ke user ini
+  const availableOutlets = allOutlets.filter(
+    (o) => !userOutlets.some((uo) => uo.id === o.id)
+  );
 
-            <Alert severity="info" sx={{ mb: 2 }}>
-                Pengguna yang ditambahkan di sini dapat login ke <strong>Aplikasi Android</strong> sebagai akun sales.
-                Klik tombol <StoreIcon sx={{ fontSize: 16, verticalAlign: "middle" }} /> untuk mengatur outlet milik user.
-            </Alert>
+  const deleteTarget = users.find((u) => u.id === deleteId);
 
-            {/* Search */}
-            <TextField
-                size="small"
-                placeholder="Cari nama atau email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-                sx={{ mb: 1.5, width: { xs: "100%", sm: 300 } }}
-            />
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600">
+            <UsersIcon className="w-6 h-6" />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-gray-900">Manajemen Pengguna</h1>
+            <span className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold shadow-sm">
+              {users.length} user
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={handleOpenAdd}
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm w-full sm:w-auto justify-center"
+        >
+          <Plus className="w-5 h-5" /> Tambah Pengguna
+        </button>
+      </div>
 
-            {/* Tabel */}
-            <Paper elevation={2}>
-                <TableContainer sx={{ overflowX: "auto" }}>
-                    <Table sx={{ minWidth: 700 }}>
-                        <TableHead sx={{ bgcolor: "primary.main" }}>
-                            <TableRow>
-                                <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>
-                                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Nama</TableCell>
-                                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Email</TableCell>
-                                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Role</TableCell>
-                                <TableCell sx={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Aksi</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow><TableCell colSpan={5} align="center"><CircularProgress sx={{ mt: 2 }} /></TableCell></TableRow>
-                            ) : filtered.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.secondary" }}>Tidak ada data pengguna.</TableCell></TableRow>
-                            ) : (
-                                filtered.map((row, idx) => (
-                                    <TableRow key={row.id} hover>
-                                        <TableCell>{idx + 1}</TableCell>
-                                        <TableCell sx={{ fontWeight: 500 }}>{row.name}</TableCell>
-                                        <TableCell sx={{ color: "text.secondary", fontSize: "0.85rem" }}>{row.email}</TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={row.role ?? "sales"}
-                                                size="small"
-                                                color={row.role === "admin" ? "error" : "primary"}
-                                                variant="outlined"
-                                            />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title="Kelola Outlet">
-                                                <IconButton color="success" size="small" onClick={() => openOutletDialog(row)}>
-                                                    <StoreIcon />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <IconButton color="primary" size="small" onClick={() => handleOpenEdit(row)}>
-                                                <EditIcon />
-                                            </IconButton>
-                                            <IconButton color="error" size="small" onClick={() => setDeleteId(row.id)}>
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            </Paper>
+      <div className="flex items-start gap-2 p-3 sm:p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100">
+        <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <p className="text-sm">
+          Pengguna yang ditambahkan di sini dapat login ke <strong>Aplikasi Android</strong> sebagai akun sales.
+          Klik tombol ikon <Store className="w-4 h-4 inline mx-1" /> untuk mengatur outlet milik user.
+        </p>
+      </div>
 
-            {/* ── Dialog: Assign Outlet ──────────────────────────────────────── */}
-            <Dialog
-                open={outletDialogUser !== null}
-                onClose={() => setOutletDialogUser(null)}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <StoreIcon color="success" />
-                    Outlet — {outletDialogUser?.name}
-                </DialogTitle>
-                <DialogContent>
-                    {/* Tambah outlet */}
-                    <Typography variant="subtitle2" fontWeight={600} mb={1}>Assign Outlet Baru</Typography>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
-                        <Autocomplete
-                            fullWidth
-                            options={availableOutlets}
-                            getOptionLabel={(o) => `${o.code} — ${o.name}`}
-                            value={selectedOutlet}
-                            onChange={(_, val) => setSelectedOutlet(val)}
-                            renderInput={(params) => (
-                                <TextField {...params} label="Pilih Outlet" size="small" />
-                            )}
-                        />
-                        <Button
-                            variant="contained"
-                            color="success"
-                            onClick={handleAssignOutlet}
-                            disabled={!selectedOutlet}
-                            sx={{ whiteSpace: "nowrap", minWidth: 90, width: { xs: "100%", sm: "auto" } }}
+      {/* Search */}
+      <div className="relative w-full sm:w-80">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="Cari nama atau email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm outline-none"
+        />
+      </div>
+
+      {/* Tabel */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-emerald-600 text-white text-sm">
+                <th className="px-4 py-3.5 font-semibold w-12 text-center">No</th>
+                <th className="px-4 py-3.5 font-semibold">Nama</th>
+                <th className="px-4 py-3.5 font-semibold">Email</th>
+                <th className="px-4 py-3.5 font-semibold">Role</th>
+                <th className="px-4 py-3.5 font-semibold text-center w-32">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {loading ? (
+                <TableRowsSkeleton rows={itemsPerPage} cols={5} />
+              ) : paginatedUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    Tidak ada data pengguna.
+                  </td>
+                </tr>
+              ) : (
+                paginatedUsers.map((row, idx) => {
+                  const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
+                  return (
+                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
+                    <td className="px-4 py-3 text-gray-500">{row.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                        row.role === 'admin' 
+                          ? 'bg-rose-50 text-rose-700 border-rose-200' 
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}>
+                        {row.role ?? "sales"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openOutletDialog(row)}
+                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Kelola Outlet"
                         >
-                            Assign
-                        </Button>
-                    </Stack>
+                          <Store className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEdit(row)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(row.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {!loading && filtered.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
+      </div>
 
-                    <Divider sx={{ my: 2 }} />
+      {/* ── Dialog: Assign Outlet ──────────────────────────────────────── */}
+      <Modal
+        open={outletDialogUser !== null}
+        onClose={() => setOutletDialogUser(null)}
+        title={<><Store className="w-5 h-5 text-emerald-600" /> Outlet — {outletDialogUser?.name}</>}
+        actions={
+          <button onClick={() => setOutletDialogUser(null)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+            Tutup
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-2">Assign Outlet Baru</h4>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={selectedOutletId}
+                onChange={(e) => setSelectedOutletId(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white text-sm"
+              >
+                <option value="">— Pilih Outlet —</option>
+                {availableOutlets.map((o) => (
+                  <option key={o.id} value={o.id}>{o.code} — {o.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleAssignOutlet}
+                disabled={!selectedOutletId}
+                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                Assign
+              </button>
+            </div>
+          </div>
 
-                    {/* Daftar outlet yang sudah dimiliki */}
-                    <Typography variant="subtitle2" fontWeight={600} mb={1}>
-                        Outlet yang Dimiliki
-                        <Chip label={userOutlets.length} size="small" sx={{ ml: 1 }} />
-                    </Typography>
-                    {outletLoading ? (
-                        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-                            <CircularProgress size={24} />
-                        </Box>
-                    ) : userOutlets.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
-                            Belum ada outlet yang di-assign ke user ini.
-                        </Typography>
-                    ) : (
-                        <List dense sx={{ bgcolor: "background.default", borderRadius: 1 }}>
-                            {userOutlets.map((outlet) => (
-                                <ListItem key={outlet.id} divider>
-                                    <ListItemText
-                                        primary={outlet.name}
-                                        secondary={outlet.code}
-                                        primaryTypographyProps={{ fontWeight: 500 }}
-                                    />
-                                    <ListItemSecondaryAction>
-                                        <Tooltip title="Hapus dari user ini">
-                                            <IconButton
-                                                edge="end"
-                                                color="error"
-                                                size="small"
-                                                onClick={() => handleUnassignOutlet(outlet)}
-                                            >
-                                                <LinkOffIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </ListItemSecondaryAction>
-                                </ListItem>
-                            ))}
-                        </List>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOutletDialogUser(null)} color="inherit">Tutup</Button>
-                </DialogActions>
-            </Dialog>
+          <hr className="border-gray-100" />
 
-            {/* ── Dialog: Form User ──────────────────────────────────────────── */}
-            <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>{isEdit ? "Edit Pengguna" : "Tambah Pengguna Baru"}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 1 }}>
-                        <TextField
-                            label="Nama Lengkap *"
-                            fullWidth
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        />
-                        <TextField
-                            label="Email *"
-                            type="email"
-                            fullWidth
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        />
-                        <TextField
-                            label={isEdit ? "Password Baru (kosongkan jika tidak diubah)" : "Password *"}
-                            type={showPw ? "text" : "password"}
-                            fullWidth
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton size="small" onClick={() => setShowPw((v) => !v)}>
-                                            {showPw ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                        <FormControl fullWidth>
-                            <InputLabel>Role</InputLabel>
-                            <Select
-                                label="Role"
-                                value={formData.role}
-                                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                            >
-                                {ROLES.map((r) => (
-                                    <MenuItem key={r} value={r}>
-                                        {r === "admin" ? "Admin (Web)" : "Sales (Android)"}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setOpen(false)} color="inherit">Batal</Button>
-                    <Button onClick={handleSave} variant="contained" disabled={saving}>
-                        {saving ? "Menyimpan..." : "Simpan"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+              Outlet yang Dimiliki
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
+                {userOutlets.length}
+              </span>
+            </h4>
+            
+            {outletLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+              </div>
+            ) : userOutlets.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Belum ada outlet yang di-assign ke user ini.
+              </p>
+            ) : (
+              <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100 bg-gray-50/30">
+                {userOutlets.map((outlet) => (
+                  <li key={outlet.id} className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{outlet.name}</p>
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">{outlet.code}</p>
+                    </div>
+                    <button
+                      onClick={() => handleUnassignOutlet(outlet)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Hapus dari user ini"
+                    >
+                      <Link2Off className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </Modal>
 
-            {/* ── Delete confirm ─────────────────────────────────────────────── */}
-            <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)} maxWidth="xs">
-                <DialogTitle>Hapus Pengguna?</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Hapus pengguna <strong>{deleteTarget?.name}</strong> ({deleteTarget?.email})?
-                        Aksi ini tidak bisa dibatalkan.
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteId(null)} color="inherit">Batal</Button>
-                    <Button onClick={handleDelete} color="error" variant="contained" disabled={deleting}>
-                        {deleting ? "Menghapus..." : "Hapus"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            <Snackbar
-                open={snack.open}
-                autoHideDuration={3000}
-                onClose={() => setSnack((s) => ({ ...s, open: false }))}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      {/* ── Dialog: Form User ──────────────────────────────────────────── */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={isEdit ? "Edit Pengguna" : "Tambah Pengguna Baru"}
+        actions={
+          <>
+            <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Batal</button>
+            <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-2">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isEdit ? "Password Baru (kosongkan jika tidak diubah)" : "Password *"}
+            </label>
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(!showPw)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
             >
-                <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-                    {snack.msg}
-                </Alert>
-            </Snackbar>
-        </Box>
-    );
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r === "admin" ? "Admin (Web)" : "Sales (Android)"}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Delete confirm ─────────────────────────────────────────────── */}
+      <Modal
+        open={deleteId !== null}
+        onClose={() => setDeleteId(null)}
+        title="Hapus Pengguna?"
+        actions={
+          <>
+            <button onClick={() => setDeleteId(null)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Batal</button>
+            <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-2">
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Hapus"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-600">
+          Hapus pengguna <strong className="text-gray-900">{deleteTarget?.name}</strong> ({deleteTarget?.email})?
+          Aksi ini tidak bisa dibatalkan.
+        </p>
+      </Modal>
+
+      <Toast
+        open={snack.open}
+        msg={snack.msg}
+        type={snack.severity}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+      />
+    </div>
+  );
 }

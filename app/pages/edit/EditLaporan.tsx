@@ -1,20 +1,12 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router";
 import {
-  Box,
-  Tabs,
-  Tab,
-  Typography,
-  TextField,
-  Grid,
-  Paper,
-  Button,
-  Stack,
-  CircularProgress,
-  Alert,
-} from "@mui/material";
-import SaveIcon from "@mui/icons-material/Save";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+  Save,
+  ArrowLeft,
+  Calendar,
+  AlertCircle,
+  Loader2
+} from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 
 import {
@@ -33,12 +25,6 @@ import {
   EMPTY_ITEM_ROW,
 } from "../data/constant";
 import WeeklySectionByOutlet from "../laporan/WeeklySectionByOutlet";
-
-
-function DayPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
-  if (value !== index) return null;
-  return <Box sx={{ mt: 1 }}>{children}</Box>;
-}
 
 function normalizeReportRows(rows: any[]) {
   return rows.map((row) => ({
@@ -61,6 +47,7 @@ export default function EditLaporan() {
   const [data, setData] = useState<DataMapByOutlet>(() => getInitialDataByOutlet());
   const [outlets, setOutlets] = useState<OutletMaster[]>([]);
   const [items, setItems] = useState<ItemMaster[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isValidParams) return;
@@ -171,19 +158,24 @@ export default function EditLaporan() {
         flattenOutletDataToRows(data, day, week).forEach((row) => rows.push(row));
       });
     });
+    
     if (rows.length === 0) {
-      alert("Data kosong, tidak bisa disimpan.");
+      setErrorMsg("Data kosong, tidak bisa disimpan.");
       return;
     }
+    
     const payload = rows.map((row) => ({ ...row, year: queryYear, month: queryMonth }));
+    
     if (!confirm("Yakin memperbarui laporan ini? Data lama bulan ini akan ditimpa.")) return;
+    
     setIsSaving(true);
+    setErrorMsg(null);
     try {
       await apiBe.post("/api/web/sales-reports/update", payload);
       alert("Laporan berhasil diperbarui!");
       navigate("/rekap-be");
     } catch (error: any) {
-      alert("Error: " + (error.response?.data?.message || "Gagal update"));
+      setErrorMsg(error.response?.data?.message || "Gagal update laporan");
     } finally {
       setIsSaving(false);
     }
@@ -191,51 +183,96 @@ export default function EditLaporan() {
 
   if (!isValidParams) {
     return (
-      <Box sx={{ p: 4, textAlign: "center" }}>
-        <Alert severity="error">Parameter URL tidak valid. Akses melalui halaman Rekap.</Alert>
-        <Button sx={{ mt: 2 }} variant="contained" onClick={() => navigate("/rekap-be")}>Kembali ke Rekap</Button>
-      </Box>
+      <div className="p-8 text-center max-w-md mx-auto mt-10">
+        <div className="bg-red-50 text-red-800 p-4 rounded-2xl flex flex-col items-center gap-3 border border-red-200">
+          <AlertCircle className="w-8 h-8 text-red-500" />
+          <p className="font-semibold">Parameter URL tidak valid.</p>
+          <p className="text-sm">Silakan akses melalui halaman Rekap Laporan.</p>
+          <button 
+            onClick={() => navigate("/rekap-be")}
+            className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors"
+          >
+            Kembali ke Rekap
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ p: 2, maxWidth: 1000, margin: "0 auto" }}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/rekap-be")} sx={{ mb: 1.5 }}>Kembali</Button>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5} flexWrap="wrap" gap={1}>
-        <Typography variant="h6" fontWeight="bold">Edit Laporan: {MONTHS[queryMonth - 1]} {queryYear}</Typography>
-        <Button
-          variant="contained"
-          color="warning"
-          size="medium"
-          startIcon={isSaving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
-          onClick={handleUpdate}
-          disabled={isLoading || isSaving}
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      {/* ── Header ── */}
+      <div className="flex flex-col gap-4 mb-2">
+        <button 
+          onClick={() => navigate("/rekap-be")}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-800 self-start transition-colors"
         >
-          {isSaving ? "Menyimpan..." : "Simpan Perubahan"}
-        </Button>
-      </Stack>
+          <ArrowLeft className="w-4 h-4" /> Kembali
+        </button>
 
-      <Paper variant="outlined" sx={{ p: 1.5, mb: 2, bgcolor: "#fff8e1" }}>
-        <Typography variant="caption" color="text.secondary" fontWeight={600}>Periode (read-only)</Typography>
-        <Stack direction="row" spacing={2} sx={{ mt: 0.5 }}>
-          <TextField size="small" label="Bulan" value={MONTHS[queryMonth - 1]} disabled variant="outlined" sx={{ width: 140 }} />
-          <TextField size="small" label="Tahun" value={queryYear} disabled variant="outlined" sx={{ width: 100 }} />
-        </Stack>
-      </Paper>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-gray-900 leading-tight">Edit Laporan</h1>
+              <p className="text-sm font-medium text-gray-500">
+                {MONTHS[queryMonth - 1]} {queryYear}
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleUpdate}
+            disabled={isLoading || isSaving}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-colors disabled:opacity-50 w-full sm:w-auto shadow-sm"
+          >
+            {isSaving ? (
+              <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan...</>
+            ) : (
+              <><Save className="w-5 h-5" /> Simpan Perubahan</>
+            )}
+          </button>
+        </div>
+      </div>
 
-      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: "divider", minHeight: 40 }}>
-          {DAYS.map((d) => (
-            <Tab key={d} label={d} sx={{ fontWeight: 600, minHeight: 40, py: 1 }} />
-          ))}
-        </Tabs>
-        <Box sx={{ p: 1.5, bgcolor: "grey.50", minHeight: 360 }}>
-          {isLoading && (
-            <Box sx={{ textAlign: "center", py: 4 }}><CircularProgress /></Box>
-          )}
-          {!isLoading &&
+      {errorMsg && (
+        <div className="p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <p className="text-sm font-medium">{errorMsg}</p>
+        </div>
+      )}
+
+      {/* ── Tabs Hari ── */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-x-auto border-b border-gray-200">
+          <div className="flex w-max min-w-full">
+            {DAYS.map((d, i) => (
+              <button
+                key={d}
+                onClick={() => setTab(i)}
+                className={`flex-1 px-4 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${
+                  tab === i
+                    ? "border-blue-600 text-blue-700 bg-blue-50/50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-6 bg-gray-50/50 min-h-[400px]">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-500">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <p className="text-sm font-medium">Memuat data laporan...</p>
+            </div>
+          ) : (
             DAYS.map((day, dayIdx) => (
-              <DayPanel key={day} value={tab} index={dayIdx}>
+              <div key={day} className={tab === dayIdx ? "block" : "hidden animate-in fade-in zoom-in-95 duration-200"}>
                 {[1, 2, 3, 4].map((week) => (
                   <WeeklySectionByOutlet
                     key={week}
@@ -256,10 +293,11 @@ export default function EditLaporan() {
                     onRemoveOutlet={(gIdx) => handleRemoveOutlet(day, week, gIdx)}
                   />
                 ))}
-              </DayPanel>
-            ))}
-        </Box>
-      </Paper>
-    </Box>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

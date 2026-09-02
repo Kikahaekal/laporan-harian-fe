@@ -1,38 +1,25 @@
 import { useState, useEffect } from "react";
-import { 
-  Box, 
-  Typography, 
-  Accordion, 
-  AccordionSummary, 
-  AccordionDetails, 
-  List, 
-  ListItemButton, 
-  ListItemText, 
-  CircularProgress,
-  Paper,
-  Divider,
-  Alert,
-  Chip,
-  Stack
-} from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import EditIcon from "@mui/icons-material/Edit";
-import FolderIcon from "@mui/icons-material/Folder";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { useNavigate } from "react-router"; 
+import { 
+  FolderOpen, 
+  Calendar, 
+  ChevronDown, 
+  ChevronRight, 
+  Edit2, 
+  AlertCircle,
+  Loader2,
+  Clock,
+  CheckCircle,
+  XCircle
+} from "lucide-react";
 import apiBe from "../../lib/axiosBe";
-
-// Pastikan path import ini benar sesuai struktur foldermu
-// Mengambil MONTHS dari folder laporan
 import { MONTHS } from "../data/constant"; 
 
-// Tipe data response API
 interface PeriodData {
   year: number;
   month: number;
 }
 
-// Tipe data grouping: { "2026": [3, 2, 1] }
 interface GroupedPeriods {
   [year: number]: number[];
 }
@@ -49,6 +36,9 @@ export default function Rekap() {
   const [groupedData, setGroupedData] = useState<GroupedPeriods>({});
   const [statusByPeriod, setStatusByPeriod] = useState<Record<string, StatusCount>>({});
   const [error, setError] = useState<string | null>(null);
+  
+  // State for expanded accordions
+  const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const fetchPeriods = async () => {
@@ -67,6 +57,16 @@ export default function Rekap() {
         }, {} as GroupedPeriods);
 
         setGroupedData(grouped);
+        
+        // Auto-expand current year
+        const currentYear = new Date().getFullYear();
+        if (grouped[currentYear]) {
+          setExpandedYears({ [currentYear]: true });
+        } else if (Object.keys(grouped).length > 0) {
+          // Or expand the most recent year
+          const latestYear = Math.max(...Object.keys(grouped).map(Number));
+          setExpandedYears({ [latestYear]: true });
+        }
       } catch (err) {
         console.error("Gagal ambil periode:", err);
         setError("Gagal memuat data rekap.");
@@ -78,7 +78,7 @@ export default function Rekap() {
     fetchPeriods();
   }, []);
 
-  // Fetch status ringkasan per periode (setelah groupedData ada)
+  // Fetch status ringkasan per periode
   useEffect(() => {
     if (Object.keys(groupedData).length === 0) return;
 
@@ -122,85 +122,137 @@ export default function Rekap() {
     fetchStatusForPeriods();
   }, [groupedData]);
 
-  // Navigasi ke Halaman Edit dengan Query Params
+  const toggleYear = (year: number) => {
+    setExpandedYears(prev => ({
+      ...prev,
+      [year]: !prev[year]
+    }));
+  };
+
   const handleMonthClick = (year: number, month: number) => {
     navigate(`/edit?year=${year}&month=${month}`);
   };
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, maxWidth: 800, margin: "0 auto" }}>
-      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} spacing={1} mb={3}>
-        <FolderIcon fontSize="large" color="primary" />
-        <Typography variant="h4" fontWeight="bold">
-          Rekap Laporan
-        </Typography>
-      </Stack>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm">
+          <FolderOpen className="w-7 h-7" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 leading-tight">Rekap Laporan</h1>
+          <p className="text-sm text-gray-500 font-medium">Lihat dan edit laporan penjualan per periode</p>
+        </div>
+      </div>
 
       {loading && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-          <CircularProgress />
-        </Box>
+        <div className="flex flex-col items-center justify-center py-12 gap-3 text-gray-500">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <p className="font-medium">Memuat data rekap...</p>
+        </div>
       )}
 
-      {error && <Alert severity="error">{error}</Alert>}
+      {error && (
+        <div className="p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl flex items-center gap-3 shadow-sm">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p className="font-medium">{error}</p>
+        </div>
+      )}
 
       {!loading && !error && Object.keys(groupedData).length === 0 && (
-        <Alert severity="info">Belum ada data laporan yang tersimpan.</Alert>
+        <div className="p-8 text-center bg-gray-50 border border-gray-200 rounded-2xl">
+          <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <h3 className="text-lg font-bold text-gray-900 mb-1">Belum ada data</h3>
+          <p className="text-gray-500">Belum ada data laporan yang tersimpan dalam sistem.</p>
+        </div>
       )}
 
       {/* RENDER ACCORDION PER TAHUN */}
-      {!loading && Object.keys(groupedData)
-        .map(Number)
-        .sort((a, b) => b - a) // Urutkan tahun terbaru di atas
-        .map((year) => (
-          <Accordion key={year} defaultExpanded={year === new Date().getFullYear()}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6" fontWeight="bold">
-                Tahun {year}
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Paper variant="outlined">
-                <List disablePadding>
-                  {groupedData[year].map((monthIndex, idx) => (
-                    <div key={monthIndex}>
-                      {idx > 0 && <Divider />} 
-                      
-                      <ListItemButton onClick={() => handleMonthClick(year, monthIndex)}>
-                        <Box sx={{ display: 'flex', alignItems: { xs: "flex-start", sm: "center" }, width: '100%', flexWrap: 'wrap', gap: 1, flexDirection: { xs: "column", sm: "row" } }}>
-                            <CalendarMonthIcon color="action" sx={{ mr: { xs: 0, sm: 2 } }} />
-                            
-                            <ListItemText 
-                              primary={MONTHS[monthIndex - 1]} 
-                              primaryTypographyProps={{ fontWeight: 500 }}
-                            />
+      <div className="space-y-4">
+        {!loading && Object.keys(groupedData)
+          .map(Number)
+          .sort((a, b) => b - a)
+          .map((year) => {
+            const isExpanded = !!expandedYears[year];
+            
+            return (
+              <div key={year} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <button 
+                  onClick={() => toggleYear(year)}
+                  className="w-full flex items-center justify-between p-4 sm:p-5 bg-gray-50/50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? 
+                      <ChevronDown className="w-5 h-5 text-gray-400" /> : 
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    }
+                    <h2 className="text-lg font-bold text-gray-900">Tahun {year}</h2>
+                  </div>
+                  <span className="px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-full text-xs font-bold shadow-sm">
+                    {groupedData[year].length} Bulan
+                  </span>
+                </button>
+                
+                {isExpanded && (
+                  <div className="border-t border-gray-100">
+                    <ul className="divide-y divide-gray-100">
+                      {groupedData[year].sort((a, b) => b - a).map((monthIndex) => {
+                        const status = statusByPeriod[`${year}-${monthIndex}`];
+                        
+                        return (
+                          <li key={monthIndex}>
+                            <button 
+                              onClick={() => handleMonthClick(year, monthIndex)}
+                              className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 hover:bg-blue-50/50 transition-colors group text-left gap-4"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-gray-100 text-gray-500 rounded-xl group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                  <Calendar className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-gray-900 text-base">{MONTHS[monthIndex - 1]}</h3>
+                                  <p className="text-xs text-gray-500 font-medium">Laporan Penjualan</p>
+                                </div>
+                              </div>
 
-                            {statusByPeriod[`${year}-${monthIndex}`] && (
-                              <Stack direction={{ xs: "column", sm: "row" }} spacing={0.5} flexWrap="wrap" sx={{ flex: 1, justifyContent: { xs: "flex-start", sm: "flex-end" } }}>
-                                {statusByPeriod[`${year}-${monthIndex}`].pending > 0 && (
-                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].pending} Pending`} color="warning" variant="outlined" />
+                              <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                                {status && (
+                                  <>
+                                    {status.pending > 0 && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        <Clock className="w-3.5 h-3.5" /> {status.pending} Pending
+                                      </span>
+                                    )}
+                                    {status.approved > 0 && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <CheckCircle className="w-3.5 h-3.5" /> {status.approved} Approved
+                                      </span>
+                                    )}
+                                    {status.rejected > 0 && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
+                                        <XCircle className="w-3.5 h-3.5" /> {status.rejected} Rejected
+                                      </span>
+                                    )}
+                                  </>
                                 )}
-                                {statusByPeriod[`${year}-${monthIndex}`].approved > 0 && (
-                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].approved} Approved`} color="success" variant="outlined" />
-                                )}
-                                {statusByPeriod[`${year}-${monthIndex}`].rejected > 0 && (
-                                  <Chip size="small" label={`${statusByPeriod[`${year}-${monthIndex}`].rejected} Rejected`} color="error" variant="outlined" />
-                                )}
-                              </Stack>
-                            )}
-                            
-                            <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                Edit <EditIcon fontSize="small" />
-                            </Typography>
-                        </Box>
-                      </ListItemButton>
-                    </div>
-                  ))}
-                </List>
-              </Paper>
-            </AccordionDetails>
-          </Accordion>
-        ))}
-    </Box>
+                                
+                                <div className="flex items-center gap-1 ml-2 text-blue-600 font-semibold text-sm px-3 py-1.5 rounded-lg group-hover:bg-blue-100 transition-colors">
+                                  <span>Edit</span>
+                                  <Edit2 className="w-4 h-4" />
+                                </div>
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+      </div>
+    </div>
   );
 }

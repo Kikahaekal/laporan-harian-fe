@@ -1,35 +1,21 @@
 import { useState, useEffect } from "react";
-import {
-  Box,
-  Typography,
-  Stack,
-  Card,
-  CardContent,
-  Button,
-  Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  Chip,
-  CircularProgress,
-  Alert,
-  Divider,
-} from "@mui/material";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import HistoryIcon from "@mui/icons-material/History";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import BarChartIcon from "@mui/icons-material/BarChart";
-import LocalShippingIcon from "@mui/icons-material/LocalShipping";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import StorefrontIcon from "@mui/icons-material/Storefront";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import { useNavigate } from "react-router";
 import apiBe from "../../lib/axiosBe";
 import { type Sale } from "../data/constant";
 import { CardsSkeleton, TableRowsSkeleton } from "../../components/TableSkeleton";
+import {
+  FileText,
+  Truck,
+  CheckCircle,
+  Banknote,
+  AlertCircle,
+  Store,
+  ChevronRight,
+  BarChart2,
+  Loader2,
+  Wallet
+} from "lucide-react";
+import { WeeklyMonitorSection } from "../../components/WeeklyMonitorSection";
 
 function todayRange() {
   const now = new Date();
@@ -67,67 +53,24 @@ interface SummaryCardProps {
   icon: React.ReactNode;
   label: string;
   value: string | number;
-  color?: "primary" | "success" | "warning" | "error" | "info";
+  colorClass: string;
   sub?: string;
 }
 
-function SummaryCard({ icon, label, value, color = "primary", sub }: SummaryCardProps) {
-  const colorMap = {
-    primary: "#1976d2",
-    success: "#2e7d32",
-    warning: "#ed6c02",
-    error: "#d32f2f",
-    info: "#0288d1",
-  };
+function SummaryCard({ icon, label, value, colorClass, sub }: SummaryCardProps) {
   return (
-    <Card
-      variant="outlined"
-      sx={{
-        flex: { xs: "0 0 auto", sm: "1 1 200px" },
-        minWidth: { xs: 0, sm: 160 },
-      }}
-    >
-      <CardContent
-        sx={{
-          py: { xs: 0.75, sm: 1 },
-          px: { xs: 1, sm: 1.5 },
-          "&:last-child": { pb: { xs: 0.75, sm: 1 } },
-        }}
-      >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.75}>
-          <Stack spacing={0.35}>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              fontWeight={600}
-              display="block"
-              sx={{ lineHeight: 1, fontSize: { xs: "0.68rem", sm: "0.75rem" } }}
-            >
-              {label}
-            </Typography>
-            <Typography
-              variant="h5"
-              fontWeight="bold"
-              color={colorMap[color]}
-              lineHeight={1}
-              sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}
-            >
-              {value}
-            </Typography>
-            {sub && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ lineHeight: 1, fontSize: { xs: "0.65rem", sm: "0.75rem" } }}
-              >
-                {sub}
-              </Typography>
-            )}
-          </Stack>
-          <Box sx={{ color: colorMap[color], opacity: 0.8, "& svg": { fontSize: { xs: 22, sm: 32 } } }}>{icon}</Box>
-        </Stack>
-      </CardContent>
-    </Card>
+    <div className="flex-1 min-w-[200px] bg-white border border-gray-100 rounded-2xl shadow-sm p-4 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start gap-2">
+        <div className="space-y-1">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</span>
+          <h3 className={`text-2xl sm:text-3xl font-bold ${colorClass}`}>{value}</h3>
+          {sub && <p className="text-xs text-gray-400">{sub}</p>}
+        </div>
+        <div className={`p-2 rounded-xl bg-gray-50 ${colorClass}`}>
+          {icon}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -170,200 +113,105 @@ export default function Dashboard() {
   const totalGrandTotal = monthNota.reduce((sum, n) => sum + Number(n.grand_total || 0), 0);
   const recentNota = todayNota.slice(0, 8);
 
+  const onSaleUpdated = (updated: Sale) => {
+    setTodayNota((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  };
+
+  const onSaleDeleted = (id: number) => {
+    setTodayNota((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const outletsMap = new Map<number, OutletData>();
+  const salesMap: Record<number, Sale[]> = {};
+
+  todayNota.forEach((sale) => {
+    if (sale.outlet) {
+      if (!outletsMap.has(sale.outlet_id)) {
+        outletsMap.set(sale.outlet_id, sale.outlet);
+      }
+      if (!salesMap[sale.outlet_id]) salesMap[sale.outlet_id] = [];
+      salesMap[sale.outlet_id].push(sale);
+    }
+  });
+
+  const outlets = Array.from(outletsMap.values());
+
   return (
-    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between" mb={2} flexWrap="wrap" gap={1}>
-        <Box>
-          <Typography variant="h5" fontWeight="bold">
-            Dashboard Monitoring
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Hari ini: {todayLabel}
-          </Typography>
-        </Box>
-      </Stack>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
+          <p className="text-sm text-gray-500">Hari ini: {todayLabel}</p>
+        </div>
+      </div>
 
       {/* Error state */}
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {error && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 text-red-800 border border-red-200 rounded-xl">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {loading ? (
         <CardsSkeleton count={4} />
       ) : (
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2.5} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 180px" } }}>
+        <div className="flex flex-wrap gap-4">
           <SummaryCard
-            icon={<ReceiptLongIcon sx={{ fontSize: 36 }} />}
+            icon={<FileText className="w-8 h-8" />}
             label="Total Nota Hari Ini"
             value={todayNota.length}
-            color="primary"
+            colorClass="text-blue-600"
           />
           <SummaryCard
-            icon={<LocalShippingIcon sx={{ fontSize: 36 }} />}
+            icon={<Truck className="w-8 h-8" />}
             label="DROPPING Aktif"
             value={dropping}
-            color="warning"
+            colorClass="text-amber-500"
             sub="Menunggu invoice"
           />
           <SummaryCard
-            icon={<CheckCircleIcon sx={{ fontSize: 36 }} />}
+            icon={<CheckCircle className="w-8 h-8" />}
             label="INVOICED Hari Ini"
             value={invoiced}
-            color="success"
+            colorClass="text-emerald-600"
           />
           <SummaryCard
-            icon={<AttachMoneyIcon sx={{ fontSize: 36 }} />}
+            icon={<Banknote className="w-8 h-8" />}
             label={`Total Deposit — ${monthLabel}`}
             value={`Rp ${formatRupiah(totalDeposit)}`}
-            color="info"
+            colorClass="text-indigo-600"
             sub={`dari Rp ${formatRupiah(totalGrandTotal)} total tagihan`}
           />
-        </Stack>
+        </div>
       )}
 
       {/* Quick Actions */}
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2.5} flexWrap="wrap">
-        <Button
-          variant="contained"
-          startIcon={<ReceiptLongIcon />}
-          onClick={() => navigate("/laporan")}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
-        >
-          Monitor Nota
-        </Button>
-        <Button
-          variant="contained"
-          color="secondary"
-          startIcon={<BarChartIcon />}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <button
           onClick={() => {
             const now = new Date();
             navigate(`/rekap-be/detail?year=${now.getFullYear()}&month=${now.getMonth() + 1}`);
           }}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
         >
-          📊 Rekap Bulan Ini
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<AssessmentIcon />}
-          onClick={() => navigate("/laporan")}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
+          <BarChart2 className="w-4 h-4" />
+          Rekap Bulan Ini
+        </button>
+        <button
+          onClick={() => navigate("/tagihan")}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
         >
-          Laporan Harian
-        </Button>
-      </Stack>
+          <Wallet className="w-4 h-4" />
+          Tagihan
+        </button>
+      </div>
 
-
-      <Divider sx={{ mb: 2 }} />
-
-      {/* Tabel Nota Hari Ini */}
-      <Paper variant="outlined">
-        <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1, display: "flex", alignItems: "center", gap: 1 }}>
-          <StorefrontIcon color="action" />
-          <Typography variant="subtitle1" fontWeight={600}>
-            Nota Hari Ini
-          </Typography>
-          {!loading && (
-            <Chip label={`${todayNota.length} nota`} size="small" variant="outlined" sx={{ ml: 0.5 }} />
-          )}
-        </Box>
-        <Divider />
-
-        {loading ? (
-          <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="small" sx={{ minWidth: 720 }}>
-              <TableHead>
-                <TableRow sx={{ bgcolor: "grey.50" }}>
-                  <TableCell sx={{ fontWeight: 600 }}>No. Nota</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Tanggal</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Outlet ID</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Grand Total</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Deposit</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Aksi</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <TableRowsSkeleton rows={5} cols={7} />
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : recentNota.length === 0 ? (
-          <Box sx={{ py: 4, textAlign: "center" }}>
-            <Typography color="text.secondary">Belum ada nota transaksi hari ini.</Typography>
-          </Box>
-        ) : (
-          <TableContainer sx={{ overflowX: "auto" }}>
-            <Table size="small" sx={{ minWidth: 720 }}>
-              <TableHead>
-                <TableRow sx={{ bgcolor: "grey.50" }}>
-                  <TableCell sx={{ fontWeight: 600 }}>No. Nota</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Tanggal</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Outlet ID</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Grand Total</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Deposit</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="center">Aksi</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {recentNota.map((nota) => {
-                  const sisa = Number(nota.grand_total || 0) - Number(nota.deposit || 0);
-                  return (
-                    <TableRow key={nota.id} hover>
-                      <TableCell sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.8rem" }}>
-                        {nota.nota_number}
-                      </TableCell>
-                      <TableCell>{formatDate(nota.transaction_date)}</TableCell>
-                      <TableCell>
-                        {nota.outlet ? (
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <Typography variant="body2" fontWeight={600}>{nota.outlet.code}</Typography>
-                            <Typography variant="caption" color="text.secondary">{nota.outlet.name}</Typography>
-                          </Stack>
-                        ) : (
-                          `#${nota.outlet_id}`
-                        )}
-                      </TableCell>
-                      <TableCell align="right">{formatRupiah(nota.grand_total)}</TableCell>
-                      <TableCell align="right">{formatRupiah(nota.deposit)}</TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={nota.status}
-                          size="small"
-                          color={nota.status === "INVOICED" ? "success" : "warning"}
-                          variant="filled"
-                          sx={{ fontSize: "0.7rem" }}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => navigate(`/monitoring/${nota.id}`)}
-                        >
-                          Detail
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )
-        }
-
-        {
-          !loading && todayNota.length > 0 && (
-            <Box sx={{ px: 2, py: 1, borderTop: 1, borderColor: "divider", display: "flex", justifyContent: "flex-end" }}>
-              <Button size="small" endIcon={<ReceiptLongIcon />} onClick={() => navigate("/laporan")}>
-                Lihat Semua Nota
-              </Button>
-            </Box>
-          )
-        }
-      </Paper >
-    </Box >
+      <div className="border-t border-gray-200 pt-6 mt-6">
+        <WeeklyMonitorSection hideHeader={true} />
+      </div>
+    </div>
   );
 }

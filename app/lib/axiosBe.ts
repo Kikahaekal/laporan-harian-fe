@@ -3,12 +3,13 @@ import axios from "axios";
 // Variabel memori untuk menyimpan raw CSRF token yang benar
 // Ini menghindari bug 'stale cookie shadowing' di browser.
 let memoryCsrfToken: string | null = null;
-const apiBaseUrl = "https://api.pinangmajusejahtera.my.id";
-// const apiBaseUrl = import.meta.env.VITE_API_URL;
+// Gunakan VITE_API_URL dari .env (default ke localhost jika tidak ada)
+const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Axios instance untuk laporan-be API (prefix: /api/web/)
 const apiBe = axios.create({
   baseURL: apiBaseUrl,
+  timeout: 10000, // Tambahan timeout agar tidak stuck loading
   headers: {
     "X-Requested-With": "XMLHttpRequest",
     "Content-Type": "application/json",

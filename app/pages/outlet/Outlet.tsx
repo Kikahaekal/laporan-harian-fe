@@ -1,39 +1,20 @@
 import { useState, useEffect } from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Stack,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-  Alert,
-  Snackbar,
-} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
-import StoreIcon from "@mui/icons-material/Store";
-import LocationOnIcon from "@mui/icons-material/LocationOn";
-import SearchIcon from "@mui/icons-material/Search";
+  Store,
+  Plus,
+  Search,
+  MapPin,
+  Edit2,
+  Trash2,
+  X,
+  AlertCircle,
+  CheckCircle,
+  Loader2
+} from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import MapPicker from "../../components/MapPicker";
 import { TableRowsSkeleton } from "../../components/TableSkeleton";
+import { Pagination } from "../../components/Pagination";
 
 const DEFAULT_LAT = 0.918;
 const DEFAULT_LNG = 104.51;
@@ -59,10 +40,65 @@ const EMPTY_FORM = {
   coor_longitude: DEFAULT_LNG as number | "",
 };
 
+// ─── Component: Dialog Modal ─────────────────────────────────────────────────
+function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; actions?: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100]" onClick={onClose} />
+      <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md pointer-events-auto flex flex-col max-h-full">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h3 className="font-bold text-gray-900 text-lg">{title}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full p-1.5 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-5 overflow-y-auto">
+            {children}
+          </div>
+          {actions && (
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50/50 rounded-b-2xl">
+              {actions}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Component: Toast Notification ───────────────────────────────────────────
+function Toast({ open, msg, type, onClose }: { open: boolean; msg: string; type: "success" | "error"; onClose: () => void }) {
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => onClose(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [open, onClose]);
+  
+  if (!open) return null;
+  const isError = type === "error";
+  
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4">
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border ${isError ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+        {isError ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+        <span className="text-sm font-medium">{msg}</span>
+        <button onClick={onClose} className={`ml-2 p-1 rounded-full ${isError ? 'hover:bg-red-100' : 'hover:bg-emerald-100'}`}>
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Outlet() {
   const [outlets, setOutlets] = useState<OutletData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Modal
   const [open, setOpen] = useState(false);
@@ -104,6 +140,14 @@ export default function Outlet() {
       o.name.toLowerCase().includes(search.toLowerCase()) ||
       o.code.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedOutlets = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Reset to page 1 on search
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const handleOpenAdd = () => {
     setIsEdit(false);
@@ -174,166 +218,233 @@ export default function Outlet() {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, maxWidth: 1100, margin: "0 auto" }}>
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} flexWrap="wrap" gap={1}>
-        <Typography variant="h5" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <StoreIcon color="primary" /> Data Outlet
-          <Chip label={`${outlets.length} outlet`} size="small" variant="outlined" sx={{ ml: 1 }} />
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600">
+            <Store className="w-6 h-6" />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-gray-900">Data Outlet</h1>
+            <span className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold shadow-sm">
+              {outlets.length} outlet
+            </span>
+          </div>
+        </div>
+        <button
           onClick={handleOpenAdd}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
+          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-sm w-full sm:w-auto justify-center"
         >
-          Tambah Outlet
-        </Button>
-      </Stack>
+          <Plus className="w-5 h-5" /> Tambah Outlet
+        </button>
+      </div>
 
       {/* Search */}
-      <TextField
-        size="small"
-        placeholder="Cari nama atau kode outlet..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: "text.disabled" }} /> }}
-        sx={{ mb: 1.5, width: { xs: "100%", sm: 300 } }}
-      />
+      <div className="relative w-full sm:w-72">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          placeholder="Cari nama atau kode outlet..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm"
+        />
+      </div>
 
       {/* Tabel */}
-      <Paper elevation={2}>
-        <TableContainer sx={{ overflowX: "auto" }}>
-          <Table sx={{ minWidth: 760 }}>
-            <TableHead sx={{ bgcolor: "primary.main" }}>
-              <TableRow>
-                <TableCell sx={{ color: "white", fontWeight: "bold", width: 45 }}>No</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Kode</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Nama Outlet</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Alamat</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: "bold" }}>Hari Kunjungan</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: "bold", textAlign: "center" }}>Aksi</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-emerald-600 text-white text-sm">
+                <th className="px-4 py-3.5 font-semibold w-12 text-center">No</th>
+                <th className="px-4 py-3.5 font-semibold">Kode</th>
+                <th className="px-4 py-3.5 font-semibold">Nama Outlet</th>
+                <th className="px-4 py-3.5 font-semibold">Alamat</th>
+                <th className="px-4 py-3.5 font-semibold text-center">Hari Kunjungan</th>
+                <th className="px-4 py-3.5 font-semibold text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
               {loading ? (
-                <TableRowsSkeleton rows={5} cols={6} />
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 3, color: "text.secondary" }}>Tidak ada data outlet.</TableCell></TableRow>
+                <TableRowsSkeleton rows={itemsPerPage} cols={6} />
+              ) : paginatedOutlets.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    Tidak ada data outlet.
+                  </td>
+                </tr>
               ) : (
-                filtered.map((row, idx) => (
-                  <TableRow key={row.id} hover>
-                    <TableCell>{idx + 1}</TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontWeight: 600 }}>{row.code}</TableCell>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell sx={{ maxWidth: 200 }}>
-                      <Typography variant="body2" noWrap title={row.address}>
-                        {row.address || <span style={{ color: "#bbb" }}>—</span>}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
+                paginatedOutlets.map((row, idx) => {
+                  const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
+                  return (
+                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-gray-700 text-xs">{row.code}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={row.address}>
+                      {row.address || <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
                       {row.visit_day ? (
-                        <Chip label={row.visit_day} size="small" color="info" variant="outlined" />
-                      ) : <span style={{ color: "#bbb" }}>—</span>}
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton color="primary" size="small" onClick={() => handleOpenEdit(row)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton color="error" size="small" onClick={() => setDeleteId(row.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {row.visit_day}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleOpenEdit(row)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(row.id)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  );
+                })
               )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+            </tbody>
+          </table>
+        </div>
+        
+        {!loading && filtered.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filtered.length}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
+      </div>
 
       {/* Form Dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{isEdit ? "Edit Outlet" : "Tambah Outlet Baru"}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Kode Outlet *"
-              fullWidth
+      <Modal 
+        open={open} 
+        onClose={() => setOpen(false)} 
+        title={isEdit ? "Edit Outlet" : "Tambah Outlet Baru"}
+        actions={
+          <>
+            <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+              Batal
+            </button>
+            <button 
+              onClick={handleSave} 
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Kode Outlet <span className="text-red-500">*</span></label>
+            <input
+              type="text"
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               placeholder="Contoh: OUT-001"
             />
-            <TextField
-              label="Nama Outlet *"
-              fullWidth
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Outlet <span className="text-red-500">*</span></label>
+            <input
+              type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
             />
-            <TextField
-              label="Alamat"
-              fullWidth
-              multiline
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
+            <textarea
               rows={2}
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
             />
-            <FormControl fullWidth>
-              <InputLabel>Hari Kunjungan</InputLabel>
-              <Select
-                label="Hari Kunjungan"
-                value={formData.visit_day}
-                onChange={(e) => setFormData({ ...formData, visit_day: e.target.value })}
-              >
-                <MenuItem value="">— Tidak Ditentukan —</MenuItem>
-                {VISIT_DAYS.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start" flexWrap="wrap">
-              <TextField
-                label="Latitude" size="small"
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hari Kunjungan</label>
+            <select
+              value={formData.visit_day}
+              onChange={(e) => setFormData({ ...formData, visit_day: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            >
+              <option value="">— Tidak Ditentukan —</option>
+              {VISIT_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 items-end">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Latitude</label>
+              <input
+                readOnly
+                type="text"
                 value={formData.coor_latitude === "" ? "" : formData.coor_latitude}
-                inputProps={{ readOnly: true }}
-                sx={{ flex: "1 1 120px", width: { xs: "100%", sm: "auto" } }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 outline-none text-sm"
               />
-              <TextField
-                label="Longitude" size="small"
+            </div>
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Longitude</label>
+              <input
+                readOnly
+                type="text"
                 value={formData.coor_longitude === "" ? "" : formData.coor_longitude}
-                inputProps={{ readOnly: true }}
-                sx={{ flex: "1 1 120px", width: { xs: "100%", sm: "auto" } }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 outline-none text-sm"
               />
-              <Button
-                variant="outlined"
-                startIcon={<LocationOnIcon />}
-                onClick={() => setMapPickerOpen(true)}
-                sx={{ alignSelf: "center", width: { xs: "100%", sm: "auto" } }}
-              >
-                Pilih Peta
-              </Button>
-            </Stack>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setOpen(false)} color="inherit">Batal</Button>
-          <Button onClick={handleSave} variant="contained" disabled={saving}>
-            {saving ? "Menyimpan..." : "Simpan"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            </div>
+            <button
+              onClick={() => setMapPickerOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-medium text-sm transition-colors"
+            >
+              <MapPin className="w-4 h-4" /> Peta
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete Confirm Dialog */}
-      <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)} maxWidth="xs">
-        <DialogTitle>Hapus Outlet?</DialogTitle>
-        <DialogContent>
-          <Typography>Data outlet akan dihapus permanen. Yakin?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteId(null)} color="inherit">Batal</Button>
-          <Button onClick={handleDelete} color="error" variant="contained" disabled={deleting}>
-            {deleting ? "Menghapus..." : "Hapus"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <Modal 
+        open={deleteId !== null} 
+        onClose={() => setDeleteId(null)} 
+        title="Hapus Outlet?"
+        actions={
+          <>
+            <button onClick={() => setDeleteId(null)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+              Batal
+            </button>
+            <button 
+              onClick={handleDelete} 
+              disabled={deleting}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-2"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Hapus"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-600">Data outlet akan dihapus permanen. Yakin?</p>
+      </Modal>
 
       <MapPicker
         open={mapPickerOpen}
@@ -346,16 +457,12 @@ export default function Outlet() {
         }}
       />
 
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={3000}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
-          {snack.msg}
-        </Alert>
-      </Snackbar>
-    </Box>
+      <Toast 
+        open={snack.open} 
+        msg={snack.msg} 
+        type={snack.severity} 
+        onClose={() => setSnack((s) => ({ ...s, open: false }))} 
+      />
+    </div>
   );
 }

@@ -1,5 +1,3 @@
-import { Skeleton, TableRow, TableCell, Box, Stack } from "@mui/material";
-
 /**
  * Skeleton rows untuk tabel — meniru baris data agar loading terasa natural.
  * @param rows    Jumlah baris skeleton (default 5)
@@ -9,13 +7,15 @@ export function TableRowsSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?
     return (
         <>
             {Array.from({ length: rows }).map((_, i) => (
-                <TableRow key={i}>
+                <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                     {Array.from({ length: cols }).map((_, j) => (
-                        <TableCell key={j}>
-                            <Skeleton variant="text" animation="wave" width={j === 0 ? 40 : "80%"} />
-                        </TableCell>
+                        <td key={j} className="px-4 py-3 whitespace-nowrap">
+                            <div 
+                                className={`h-4 bg-gray-200 rounded animate-pulse ${j === 0 ? 'w-10' : 'w-4/5'}`}
+                            ></div>
+                        </td>
                     ))}
-                </TableRow>
+                </tr>
             ))}
         </>
     );
@@ -27,15 +27,15 @@ export function TableRowsSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?
  */
 export function CardsSkeleton({ count = 4 }: { count?: number }) {
     return (
-        <Stack direction="row" spacing={1.5} flexWrap="wrap">
+        <div className="flex flex-wrap gap-4">
             {Array.from({ length: count }).map((_, i) => (
-                <Box key={i} sx={{ flex: "1 1 170px", minWidth: 150, border: "1px solid #e0e0e0", borderRadius: 1, p: 2 }}>
-                    <Skeleton variant="text" width="55%" animation="wave" sx={{ mb: 0.5 }} />
-                    <Skeleton variant="text" width="80%" height={36} animation="wave" />
-                    <Skeleton variant="text" width="45%" animation="wave" />
-                </Box>
+                <div key={i} className="flex-1 min-w-[150px] border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2 mb-3"></div>
+                    <div className="h-8 bg-gray-200 rounded animate-pulse w-4/5 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-1/3"></div>
+                </div>
             ))}
-        </Stack>
+        </div>
     );
 }
 
@@ -45,13 +45,13 @@ export function CardsSkeleton({ count = 4 }: { count?: number }) {
  */
 export function DetailSkeleton({ rows = 6 }: { rows?: number }) {
     return (
-        <Stack spacing={1.5}>
+        <div className="space-y-4">
             {Array.from({ length: rows }).map((_, i) => (
-                <Stack key={i} direction="row" spacing={2} alignItems="center">
-                    <Skeleton variant="text" width={120} animation="wave" />
-                    <Skeleton variant="text" width="60%" animation="wave" />
-                </Stack>
+                <div key={i} className="flex flex-row items-center gap-4">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-[120px]"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse flex-1 max-w-[60%]"></div>
+                </div>
             ))}
-        </Stack>
+        </div>
     );
 }
