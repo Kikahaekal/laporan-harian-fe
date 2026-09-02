@@ -16,6 +16,8 @@ import {
   Wallet
 } from "lucide-react";
 import { WeeklyMonitorSection } from "../../components/WeeklyMonitorSection";
+import { OutletMap } from "../../components/OutletMap";
+import { type OutletData } from "../data/constant";
 
 function todayRange() {
   const now = new Date();
@@ -77,26 +79,31 @@ function SummaryCard({ icon, label, value, colorClass, sub }: SummaryCardProps) 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { from, to, label: todayLabel } = todayRange();
+  const { from: mFrom, to: mTo, label: monthLabel } = monthRange();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [todayNota, setTodayNota] = useState<Sale[]>([]);
   const [monthNota, setMonthNota] = useState<Sale[]>([]);
-
-  const { from: mFrom, to: mTo, label: monthLabel } = monthRange();
+  const [outlets, setOutlets] = useState<OutletData[]>([]);
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
         setLoading(true);
-        const [todayRes, monthRes] = await Promise.all([
+        const [todayRes, monthRes, outletsRes] = await Promise.all([
           apiBe.get("/api/web/sales", { params: { from, to, per_page: 1000 } }),
           apiBe.get("/api/web/sales", { params: { from: mFrom, to: mTo, per_page: 1000 } }),
+          apiBe.get("/api/web/outlets")
         ]);
         const toList = (raw: any): Sale[] =>
           Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
         setTodayNota(toList(todayRes.data));
         setMonthNota(toList(monthRes.data));
+        
+        // Outlets Data
+        const outList = Array.isArray(outletsRes.data) ? outletsRes.data : outletsRes.data?.data ?? [];
+        setOutlets(outList);
       } catch (err) {
         console.error("Gagal load dashboard:", err);
         setError("Gagal memuat data. Pastikan server laporan-be berjalan.");
@@ -111,30 +118,6 @@ export default function Dashboard() {
   const invoiced = todayNota.filter((n) => n.status === "INVOICED").length;
   const totalDeposit = monthNota.reduce((sum, n) => sum + Number(n.deposit || 0), 0);
   const totalGrandTotal = monthNota.reduce((sum, n) => sum + Number(n.grand_total || 0), 0);
-  const recentNota = todayNota.slice(0, 8);
-
-  const onSaleUpdated = (updated: Sale) => {
-    setTodayNota((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-  };
-
-  const onSaleDeleted = (id: number) => {
-    setTodayNota((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const outletsMap = new Map<number, OutletData>();
-  const salesMap: Record<number, Sale[]> = {};
-
-  todayNota.forEach((sale) => {
-    if (sale.outlet) {
-      if (!outletsMap.has(sale.outlet_id)) {
-        outletsMap.set(sale.outlet_id, sale.outlet);
-      }
-      if (!salesMap[sale.outlet_id]) salesMap[sale.outlet_id] = [];
-      salesMap[sale.outlet_id].push(sale);
-    }
-  });
-
-  const outlets = Array.from(outletsMap.values());
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -188,29 +171,66 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <button
-          onClick={() => {
-            const now = new Date();
-            navigate(`/rekap-be/detail?year=${now.getFullYear()}&month=${now.getMonth() + 1}`);
-          }}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
-        >
-          <BarChart2 className="w-4 h-4" />
-          Rekap Bulan Ini
-        </button>
-        <button
-          onClick={() => navigate("/tagihan")}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
-        >
-          <Wallet className="w-4 h-4" />
-          Tagihan
-        </button>
+      {/* Quick Actions Shortcuts */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900 mb-3">Akses Cepat</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => {
+              const now = new Date();
+              navigate(`/rekap-be/detail?year=${now.getFullYear()}&month=${now.getMonth() + 1}`);
+            }}
+            className="flex flex-1 min-w-[140px] items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <BarChart2 className="w-5 h-5" />
+            Rekap Bulanan
+          </button>
+          <button
+            onClick={() => navigate("/tagihan")}
+            className="flex flex-1 min-w-[140px] items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <Wallet className="w-5 h-5" />
+            Tagihan
+          </button>
+          <button
+            onClick={() => navigate("/outlet")}
+            className="flex flex-1 min-w-[140px] items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <Store className="w-5 h-5" />
+            Data Outlet
+          </button>
+          <button
+            onClick={() => navigate("/item")}
+            className="flex flex-1 min-w-[140px] items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <FileText className="w-5 h-5" />
+            Data Barang
+          </button>
+          <button
+            onClick={() => navigate("/users")}
+            className="flex flex-1 min-w-[140px] items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl font-medium transition-colors shadow-sm"
+          >
+            <Store className="w-5 h-5" />
+            Data User
+          </button>
+        </div>
       </div>
 
-      <div className="border-t border-gray-200 pt-6 mt-6">
-        <WeeklyMonitorSection hideHeader={true} />
+      {/* Maps */}
+      <div className="pt-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Peta Lokasi Outlet</h2>
+          <span className="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full">
+            {outlets.filter(o => o.coor_latitude && o.coor_longitude).length} titik tersedia
+          </span>
+        </div>
+        {loading ? (
+          <div className="w-full h-[500px] bg-gray-100 rounded-2xl flex items-center justify-center animate-pulse">
+            <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+          </div>
+        ) : (
+          <OutletMap outlets={outlets} />
+        )}
       </div>
     </div>
   );

@@ -50,7 +50,14 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<number | "ALL">("ALL");
+
   const selectedDay = DAYS[dayTab];
+
+  useEffect(() => {
+    apiBe.get("/api/web/users").then(res => setUsers(res.data)).catch(console.error);
+  }, []);
 
   useEffect(() => {
     const today = new Date();
@@ -157,11 +164,6 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     return next;
   }, [salesMap, statusTab]);
   
-  const allSales = Object.values(filteredSalesMap).flat();
-  const countDropping = allSales.filter((s) => s.status === "DROPPING").length;
-  const countInvoiced = allSales.filter((s) => s.status === "INVOICED").length;
-  const countBelumLunas = allSales.filter((s) => s.status === "INVOICED" && !(s.payment_status === "LUNAS" || Number(s.deposit) >= Number(s.grand_total))).length;
-
   const filteredOutlets = useMemo(() => {
     let result = outlets;
     
@@ -174,8 +176,31 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
       });
     }
     
+    if (statusTab !== "ALL") {
+      result = result.filter(o => {
+        const salesForOutlet = filteredSalesMap[o.id] || [];
+        return salesForOutlet.length > 0;
+      });
+    }
+
+    if (selectedUserId !== "ALL") {
+      result = result.filter(o => o.user_id === selectedUserId);
+    }
+    
     return result;
-  }, [outlets, filteredSalesMap, searchQuery]);
+  }, [outlets, filteredSalesMap, searchQuery, statusTab, selectedUserId]);
+
+  const allSales = useMemo(() => {
+    const validOutletIds = new Set(filteredOutlets.map(o => o.id));
+    return Object.entries(filteredSalesMap)
+      .filter(([outletId]) => validOutletIds.has(Number(outletId)))
+      .map(([_, sales]) => sales)
+      .flat();
+  }, [filteredSalesMap, filteredOutlets]);
+  
+  const countDropping = allSales.filter((s) => s.status === "DROPPING").length;
+  const countInvoiced = allSales.filter((s) => s.status === "INVOICED").length;
+  const countBelumLunas = allSales.filter((s) => s.status === "INVOICED" && !(s.payment_status === "LUNAS" || Number(s.deposit) >= Number(s.grand_total))).length;
 
   const totalPages = Math.ceil(filteredOutlets.length / itemsPerPage);
   const paginatedOutlets = filteredOutlets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -232,6 +257,14 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
               <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Bulan</label>
               <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 hover:bg-white transition-colors cursor-pointer outline-none">
                 {MONTHS.map((nama, i) => <option key={i} value={i + 1}>{nama}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">User / Sales</label>
+              <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50 hover:bg-white transition-colors cursor-pointer outline-none">
+                <option value="ALL">Semua User</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
             

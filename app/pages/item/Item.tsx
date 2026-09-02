@@ -126,6 +126,43 @@ export default function Item() {
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [deletingItem, setDeletingItem] = useState(false);
 
+  // Bulk select
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map(i => i.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await apiBe.post("/api/web/items/bulk-delete", { ids: Array.from(selectedIds) });
+      await fetchItems();
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      showSnack(`${selectedIds.size} barang berhasil dihapus.`);
+    } catch {
+      showSnack("Gagal menghapus barang.", "error");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const fetchCategories = async () => {
     try {
       const res = await apiBe.get("/api/web/item-categories");
@@ -388,6 +425,25 @@ export default function Item() {
               )}
             </div>
 
+            {/* Bulk Action Bar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <span className="text-sm font-medium text-red-800">{selectedIds.size} barang dipilih</span>
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" /> Hapus Terpilih
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Batal
+                </button>
+              </div>
+            )}
+
             {/* Filter */}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <div className="relative w-full sm:w-72">
@@ -423,6 +479,9 @@ export default function Item() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-blue-600 text-white text-sm">
+                      <th className="px-4 py-3 font-semibold w-10 text-center">
+                        <input type="checkbox" checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 rounded accent-white cursor-pointer" />
+                      </th>
                       <th className="px-4 py-3 font-semibold w-12 text-center">No</th>
                       <th className="px-4 py-3 font-semibold">Kode</th>
                       <th className="px-4 py-3 font-semibold">Nama Barang</th>
@@ -447,7 +506,10 @@ export default function Item() {
                         const stock = row.stock ?? 0;
                         const isLow = stock <= 5;
                         return (
-                          <tr key={row.id} className={`hover:bg-gray-50 transition-colors ${isLow ? 'bg-amber-50/30' : ''}`}>
+                          <tr key={row.id} className={`hover:bg-gray-50 transition-colors ${isLow ? 'bg-amber-50/30' : ''} ${selectedIds.has(row.id) ? 'bg-blue-50' : ''}`}>
+                            <td className="px-4 py-3 text-center">
+                              <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelect(row.id)} className="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
+                            </td>
                             <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
                             <td className="px-4 py-3 font-mono font-bold text-gray-700 text-xs">{row.code}</td>
                             <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
@@ -762,6 +824,23 @@ export default function Item() {
         }
       >
         <p className="text-gray-600">Kategori ini akan dihapus permanen. Yakin?</p>
+      </Modal>
+
+      {/* ── Bulk Delete Confirmation ── */}
+      <Modal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        title={<><AlertCircle className="w-5 h-5 text-red-500" /> Hapus {selectedIds.size} Barang?</>}
+        actions={
+          <>
+            <button onClick={() => setConfirmBulkDelete(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Batal</button>
+            <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-2">
+              {bulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Hapus Semua"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-600">Anda akan menghapus <strong>{selectedIds.size} barang</strong> secara permanen. Tindakan ini tidak dapat dibatalkan. Yakin ingin melanjutkan?</p>
       </Modal>
 
       {/* ── Snackbar ── */}

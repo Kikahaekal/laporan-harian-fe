@@ -97,6 +97,7 @@ export default function Outlet() {
   const [outlets, setOutlets] = useState<OutletData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterDay, setFilterDay] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -111,6 +112,43 @@ export default function Outlet() {
   // Delete confirm
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk select
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(o => o.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await apiBe.post("/api/web/outlets/bulk-delete", { ids: Array.from(selectedIds) });
+      await fetchOutlets();
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      showSnack(`${selectedIds.size} outlet berhasil dihapus.`);
+    } catch {
+      showSnack("Gagal menghapus outlet.", "error");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   // Snackbar
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
@@ -135,19 +173,20 @@ export default function Outlet() {
 
   useEffect(() => { fetchOutlets(); }, []);
 
-  const filtered = outlets.filter(
-    (o) =>
-      o.name.toLowerCase().includes(search.toLowerCase()) ||
-      o.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = outlets.filter((o) => {
+    const matchSearch = o.name.toLowerCase().includes(search.toLowerCase()) ||
+                        o.code.toLowerCase().includes(search.toLowerCase());
+    const matchDay = filterDay === "" || o.visit_day === filterDay;
+    return matchSearch && matchDay;
+  });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedOutlets = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Reset to page 1 on search
+  // Reset to page 1 on search or filter
   useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [search, filterDay]);
 
   const handleOpenAdd = () => {
     setIsEdit(false);
@@ -240,19 +279,53 @@ export default function Outlet() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="relative w-full sm:w-72">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative w-full sm:w-72">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Cari nama atau kode outlet..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm"
+          />
         </div>
-        <input
-          type="text"
-          placeholder="Cari nama atau kode outlet..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm"
-        />
+        
+        <div className="w-full sm:w-48">
+          <select
+            value={filterDay}
+            onChange={(e) => setFilterDay(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white shadow-sm"
+          >
+            <option value="">Semua Hari</option>
+            {VISIT_DAYS.map(day => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+          <span className="text-sm font-medium text-red-800">{selectedIds.size} outlet dipilih</span>
+          <button
+            onClick={() => setConfirmBulkDelete(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <Trash2 className="w-4 h-4" /> Hapus Terpilih
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
+          >
+            Batal
+          </button>
+        </div>
+      )}
 
       {/* Tabel */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -260,6 +333,9 @@ export default function Outlet() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-emerald-600 text-white text-sm">
+                <th className="px-4 py-3.5 font-semibold w-10 text-center">
+                  <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleSelectAll} className="w-4 h-4 rounded accent-white cursor-pointer" />
+                </th>
                 <th className="px-4 py-3.5 font-semibold w-12 text-center">No</th>
                 <th className="px-4 py-3.5 font-semibold">Kode</th>
                 <th className="px-4 py-3.5 font-semibold">Nama Outlet</th>
@@ -281,7 +357,10 @@ export default function Outlet() {
                 paginatedOutlets.map((row, idx) => {
                   const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
                   return (
-                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={row.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(row.id) ? 'bg-emerald-50' : ''}`}>
+                    <td className="px-4 py-3 text-center">
+                      <input type="checkbox" checked={selectedIds.has(row.id)} onChange={() => toggleSelect(row.id)} className="w-4 h-4 rounded accent-emerald-600 cursor-pointer" />
+                    </td>
                     <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
                     <td className="px-4 py-3 font-mono font-bold text-gray-700 text-xs">{row.code}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
@@ -456,6 +535,23 @@ export default function Outlet() {
           setMapPickerOpen(false);
         }}
       />
+
+      {/* ── Bulk Delete Confirmation ── */}
+      <Modal
+        open={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        title={<><AlertCircle className="w-5 h-5 text-red-500 inline-block mr-1" /> Hapus {selectedIds.size} Outlet?</>}
+        actions={
+          <>
+            <button onClick={() => setConfirmBulkDelete(false)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Batal</button>
+            <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-2">
+              {bulkDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Hapus Semua"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-600">Anda akan menghapus <strong>{selectedIds.size} outlet</strong> secara permanen. Tindakan ini tidak dapat dibatalkan. Yakin ingin melanjutkan?</p>
+      </Modal>
 
       <Toast 
         open={snack.open} 

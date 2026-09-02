@@ -109,7 +109,7 @@ export default function Users() {
   const [outletDialogUser, setOutletDialogUser] = useState<UserData | null>(null);
   const [allOutlets, setAllOutlets] = useState<OutletSimple[]>([]);
   const [userOutlets, setUserOutlets] = useState<OutletSimple[]>([]);
-  const [selectedOutletId, setSelectedOutletId] = useState<string>("");
+  const [selectedOutletIds, setSelectedOutletIds] = useState<Set<number>>(new Set());
   const [outletLoading, setOutletLoading] = useState(false);
 
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
@@ -234,22 +234,20 @@ export default function Users() {
   // ── Assign/Unassign Outlet ─────────────────────────────────────────────────
   const openOutletDialog = (user: UserData) => {
     setOutletDialogUser(user);
-    setSelectedOutletId("");
+    setSelectedOutletIds(new Set());
     fetchUserOutlets(user.id);
   };
 
   const handleAssignOutlet = async () => {
-    if (!outletDialogUser || !selectedOutletId) return;
-    const selectedOutlet = availableOutlets.find(o => o.id.toString() === selectedOutletId);
-    if (!selectedOutlet) return;
+    if (!outletDialogUser || selectedOutletIds.size === 0) return;
     
     try {
-      await apiBe.post(`/api/web/users/${outletDialogUser.id}/outlets`, {
-        outlet_id: selectedOutlet.id,
+      await apiBe.post(`/api/web/users/${outletDialogUser.id}/outlets/bulk-assign`, {
+        outlet_ids: Array.from(selectedOutletIds),
       });
-      setSelectedOutletId("");
-      fetchUserOutlets(outletDialogUser.id);
-      showSnack(`Outlet "${selectedOutlet.name}" berhasil di-assign ke ${outletDialogUser.name}.`);
+      setSelectedOutletIds(new Set());
+      await fetchUserOutlets(outletDialogUser.id);
+      showSnack(`${selectedOutletIds.size} outlet berhasil di-assign.`);
     } catch (err: any) {
       showSnack(err.response?.data?.message || "Gagal assign outlet.", "error");
     }
@@ -415,23 +413,37 @@ export default function Users() {
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-bold text-gray-900 mb-2">Assign Outlet Baru</h4>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <select
-                value={selectedOutletId}
-                onChange={(e) => setSelectedOutletId(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white text-sm"
-              >
-                <option value="">— Pilih Outlet —</option>
-                {availableOutlets.map((o) => (
-                  <option key={o.id} value={o.id}>{o.code} — {o.name}</option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-3">
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50/50">
+                {availableOutlets.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-2">Semua outlet sudah di-assign.</p>
+                ) : (
+                  availableOutlets.map((o) => (
+                    <label key={o.id} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedOutletIds.has(o.id)}
+                        onChange={(e) => {
+                          setSelectedOutletIds(prev => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(o.id);
+                            else next.delete(o.id);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700 font-medium">{o.code} — {o.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
               <button
                 onClick={handleAssignOutlet}
-                disabled={!selectedOutletId}
-                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors whitespace-nowrap"
+                disabled={selectedOutletIds.size === 0}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors"
               >
-                Assign
+                Assign {selectedOutletIds.size > 0 ? `${selectedOutletIds.size} Outlet` : ''}
               </button>
             </div>
           </div>
