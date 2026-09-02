@@ -90,7 +90,9 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     setOutlets([]);
     setSalesMap({});
     try {
-      const res = await apiBe.get(`/api/web/outlets`, { params: { visit_day: selectedDay } });
+      const params: any = { visit_day: selectedDay };
+      if (selectedUserId !== "ALL") params.user_id = selectedUserId;
+      const res = await apiBe.get(`/api/web/outlets`, { params });
       setOutlets(Array.isArray(res.data) ? res.data : []);
       setCurrentPage(1);
     } catch (err) {
@@ -98,7 +100,7 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     } finally {
       setLoadingOutlets(false);
     }
-  }, [selectedDay]);
+  }, [selectedDay, selectedUserId]);
 
   const fetchSales = useCallback(async (outletList: OutletData[]) => {
     if (outletList.length === 0) return;
@@ -182,13 +184,9 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
         return salesForOutlet.length > 0;
       });
     }
-
-    if (selectedUserId !== "ALL") {
-      result = result.filter(o => o.user_id === selectedUserId);
-    }
     
     return result;
-  }, [outlets, filteredSalesMap, searchQuery, statusTab, selectedUserId]);
+  }, [outlets, filteredSalesMap, searchQuery, statusTab]);
 
   const allSales = useMemo(() => {
     const validOutletIds = new Set(filteredOutlets.map(o => o.id));

@@ -17,10 +17,10 @@ export function OutletMap({ outlets }: { outlets: OutletData[] }) {
   
   const centerLat = validOutlets.length > 0 
     ? validOutlets.reduce((sum, o) => sum + Number(o.coor_latitude), 0) / validOutlets.length 
-    : -6.2088; // Default Jakarta
+    : 0.918; // Default Kepulauan Riau
   const centerLng = validOutlets.length > 0 
     ? validOutlets.reduce((sum, o) => sum + Number(o.coor_longitude), 0) / validOutlets.length 
-    : 106.8456;
+    : 104.51;
 
   return (
     <div className="w-full h-[500px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative z-0">
