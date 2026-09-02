@@ -19,6 +19,8 @@ jobs:
           node-version: "24.13.0"
 
       - name: 🔨 Install & Build
+        env:
+          VITE_API_URL: https://api.pinangmajusejahtera.my.id
         run: |
           npm install
           npm run build
