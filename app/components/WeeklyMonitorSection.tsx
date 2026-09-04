@@ -107,27 +107,27 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     setLoading(true);
     try {
       const map: Record<number, Sale[]> = {};
-      const BATCH_SIZE = 3; // Batasi 3 outlet bersamaan agar server tidak kewalahan
+      
+      // Initialize map keys for existing outlets
+      outletList.forEach((o) => { map[o.id] = []; });
 
-      for (let i = 0; i < outletList.length; i += BATCH_SIZE) {
-        const batch = outletList.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (o) => {
-            try {
-              const [droppingRes, invoicedRes] = await Promise.all([
-                apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "DROPPING", per_page: 100 } }),
-                apiBe.get(`/api/web/sales`, { params: { outlet_id: o.id, status: "INVOICED", from: fromDate, to: toDate, per_page: 100 } }),
-              ]);
-              const droppingSales: Sale[] = droppingRes.data?.data ?? [];
-              const invoicedSales: Sale[] = invoicedRes.data?.data ?? [];
-              return { outlet_id: o.id, sales: [...droppingSales, ...invoicedSales] };
-            } catch {
-              return { outlet_id: o.id, sales: [] };
-            }
-          })
-        );
-        batchResults.forEach(({ outlet_id, sales }) => { map[outlet_id] = sales; });
-      }
+      const [droppingRes, invoicedRes] = await Promise.all([
+        apiBe.get(`/api/web/sales`, { params: { status: "DROPPING", per_page: 5000 } }),
+        apiBe.get(`/api/web/sales`, { params: { status: "INVOICED", from: fromDate, to: toDate, per_page: 5000 } }),
+      ]);
+
+      const droppingSales: Sale[] = droppingRes.data?.data ?? [];
+      const invoicedSales: Sale[] = invoicedRes.data?.data ?? [];
+      const allFetchedSales = [...droppingSales, ...invoicedSales];
+
+      // Group sales by outlet_id
+      allFetchedSales.forEach((sale) => {
+        if (map[sale.outlet_id] !== undefined) {
+          map[sale.outlet_id].push(sale);
+        } else {
+          map[sale.outlet_id] = [sale];
+        }
+      });
 
       setSalesMap(map);
     } catch (err) {
