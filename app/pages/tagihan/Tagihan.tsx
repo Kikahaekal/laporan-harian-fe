@@ -9,9 +9,11 @@ import {
   Search,
   X,
   AlertCircle,
-  Loader2
+  Loader2,
+  ArrowLeft,
+  Users
 } from "lucide-react";
-import { useSearchParams } from "react-router";
+import { useSearchParams, useNavigate } from "react-router";
 import apiBe from "../../lib/axiosBe";
 import { MONTHS, type Sale, type PaymentStatus } from "../data/constant";
 import { Pagination } from "../../components/Pagination";
@@ -111,16 +113,43 @@ function Toast({ open, msg, type, onClose }: { open: boolean; msg: string; type:
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function Tagihan() {
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface UserSummary {
+  user_id: number;
+  user_name: string;
+  count_belum_lunas: number;
+  count_cicilan: number;
+  count_lunas: number;
+  total_piutang: number;
+}
 
+const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const getDayName = (dateStr: string) => {
+  const map = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  return map[new Date(dateStr).getDay()];
+};
+
+export default function Tagihan() {
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("q") || "");
-  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("q") ? "ALL" : "BELUM_LUNAS,CICILAN");
-  const [filterMonth, setFilterMonth] = useState<string>("");
+  const navigate = useNavigate();
+  
+  // ── States Level 1 (Summary by User) ──
+  const [usersSummary, setUsersSummary] = useState<UserSummary[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  
+  // ── States Level 2 (Sales Detail per User) ──
+  const [selectedUser, setSelectedUser] = useState<{ id: number; name: string } | null>(null);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  
+  // ── Common States ──
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("BELUM_LUNAS,CICILAN");
+  const [filterMonth, setFilterMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [filterDay, setFilterDay] = useState<string>(
+    ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"][new Date().getDay()]
+  );
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -137,12 +166,37 @@ export default function Tagihan() {
   const showSnack = (msg: string, severity: "success" | "error" = "success") =>
     setSnack({ open: true, msg, severity });
 
-  // ── Fetch ──
-  const fetchSales = useCallback(async () => {
-    setLoading(true);
+  // ── Fetch Level 1: Summary By User ──
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
     setError(null);
     try {
-      const params: Record<string, string> = { status: "INVOICED", per_page: "500" };
+      const params: Record<string, string> = {};
+      if (filterMonth) {
+        const y = filterYear || new Date().getFullYear().toString();
+        const lDay = new Date(Number(y), Number(filterMonth), 0).getDate();
+        params.from = `${y}-${filterMonth.padStart(2, "0")}-01`;
+        params.to = `${y}-${filterMonth.padStart(2, "0")}-${String(lDay).padStart(2, "0")}`;
+      } else if (filterYear) {
+        params.from = `${filterYear}-01-01`;
+        params.to = `${filterYear}-12-31`;
+      }
+      
+      const res = await apiBe.get("/api/web/sales/summary-by-user", { params });
+      setUsersSummary(res.data);
+    } catch {
+      setError("Gagal memuat rekap tagihan.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [filterMonth, filterYear]);
+
+  // ── Fetch Level 2: Sales Detail ──
+  const fetchSalesDetail = useCallback(async (userId: number) => {
+    setSalesLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, string> = { status: "INVOICED", user_id: String(userId), per_page: "5000" };
       if (filterMonth) {
         const y = filterYear || new Date().getFullYear().toString();
         const lDay = new Date(Number(y), Number(filterMonth), 0).getDate();
@@ -154,44 +208,79 @@ export default function Tagihan() {
       }
       const res = await apiBe.get("/api/web/sales", { params });
       const raw = res.data;
-      let list: Sale[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
-
-      // Filter payment_status di client (BE belum support filter ini)
-      if (filterStatus !== "ALL") {
-        const allowed = filterStatus.split(",");
-        list = list.filter((s) => {
-          const ps = s.payment_status ?? "BELUM_LUNAS";
-          return allowed.includes(ps);
-        });
-      }
-
-      // Filter search
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        list = list.filter(
-          (s) =>
-            s.nota_number.toLowerCase().includes(q) ||
-            (s.outlet?.name ?? "").toLowerCase().includes(q) ||
-            (s.outlet?.code ?? "").toLowerCase().includes(q)
-        );
-      }
-
-      setSales(list);
+      setSales(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
     } catch {
-      setError("Gagal memuat data tagihan.");
+      setError("Gagal memuat detail tagihan.");
     } finally {
-      setLoading(false);
+      setSalesLoading(false);
     }
-  }, [filterStatus, filterMonth, filterYear, search]);
+  }, [filterMonth, filterYear]);
 
-  useEffect(() => { fetchSales(); }, [fetchSales]);
+  // ── Handle Auto-Skip if ?q=nota is present ──
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) {
+      const autoSkip = async () => {
+        try {
+          const res = await apiBe.get("/api/web/sales", { params: { status: "INVOICED", per_page: "5000" } });
+          const allSales: Sale[] = res.data?.data || [];
+          const target = allSales.find(s => s.nota_number.toLowerCase().includes(q.toLowerCase()));
+          if (target) {
+            setSelectedUser({ id: target.user_id, name: target.user?.name ?? `User #${target.user_id}` });
+            setSearch(q);
+            setFilterStatus("ALL");
+            setFilterDay("Semua");
+          } else {
+             fetchSummary();
+          }
+        } catch {
+          fetchSummary();
+        }
+      };
+      autoSkip();
+    } else {
+      fetchSummary();
+    }
+  }, [searchParams, fetchSummary]);
 
-  const totalPages = Math.ceil(sales.length / itemsPerPage);
-  const paginatedSales = sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Refetch when filters change (Month/Year)
+  useEffect(() => {
+    if (selectedUser) {
+      fetchSalesDetail(selectedUser.id);
+    } else {
+      fetchSummary();
+    }
+  }, [filterMonth, filterYear, selectedUser, fetchSummary, fetchSalesDetail]);
+
+
+  // ── Derived Data Level 2 ──
+  let filteredSales = sales;
+  if (selectedUser) {
+    if (filterStatus !== "ALL") {
+      const allowed = filterStatus.split(",");
+      filteredSales = filteredSales.filter((s) => allowed.includes(s.payment_status ?? "BELUM_LUNAS"));
+    }
+    if (filterDay !== "Semua") {
+      filteredSales = filteredSales.filter(s => getDayName(s.transaction_date) === filterDay);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      filteredSales = filteredSales.filter(
+        (s) =>
+          s.nota_number.toLowerCase().includes(q) ||
+          (s.outlet?.name ?? "").toLowerCase().includes(q) ||
+          (s.outlet?.code ?? "").toLowerCase().includes(q)
+      );
+    }
+  }
+
+  const totalPages = Math.ceil((selectedUser ? filteredSales.length : usersSummary.length) / itemsPerPage);
+  const paginatedSales = filteredSales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedSummary = usersSummary.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterStatus, filterMonth, filterYear, search]);
+  }, [filterStatus, filterMonth, filterYear, filterDay, search, selectedUser]);
 
   // ── Update pembayaran ──
   const handleSavePayment = async () => {
@@ -206,7 +295,7 @@ export default function Tagihan() {
       await apiBe.patch(`/api/web/sales/${payDialog.id}/payment`, { deposit: dep });
       showSnack("Status pembayaran berhasil diperbarui.");
       setPayDialog(null);
-      await fetchSales();
+      if (selectedUser) fetchSalesDetail(selectedUser.id);
     } catch (err: any) {
       showSnack(err.response?.data?.message || "Gagal menyimpan pembayaran.", "error");
     } finally {
@@ -214,30 +303,48 @@ export default function Tagihan() {
     }
   };
 
-  // ── Summary ──
-  const totalPiutang = sales.reduce((s, n) => {
-    const total = Number(n.grand_total) || 0;
-    const dep = Number(n.deposit) || 0;
-    return s + Math.max(0, total - dep);
-  }, 0);
-  const countBelumLunas = sales.filter((s) => (s.payment_status ?? "BELUM_LUNAS") === "BELUM_LUNAS").length;
-  const countCicilan = sales.filter((s) => s.payment_status === "CICILAN").length;
-  const countLunas = sales.filter((s) => s.payment_status === "LUNAS").length;
+  // ── Summary Cards Calculation ──
+  let countBelumLunas = 0, countCicilan = 0, countLunas = 0, totalPiutang = 0;
+  if (selectedUser) {
+    totalPiutang = filteredSales.reduce((s, n) => s + Math.max(0, (Number(n.grand_total) || 0) - (Number(n.deposit) || 0)), 0);
+    countBelumLunas = filteredSales.filter((s) => (s.payment_status ?? "BELUM_LUNAS") === "BELUM_LUNAS").length;
+    countCicilan = filteredSales.filter((s) => s.payment_status === "CICILAN").length;
+    countLunas = filteredSales.filter((s) => s.payment_status === "LUNAS").length;
+  } else {
+    countBelumLunas = usersSummary.reduce((s, u) => s + Number(u.count_belum_lunas), 0);
+    countCicilan = usersSummary.reduce((s, u) => s + Number(u.count_cicilan), 0);
+    countLunas = usersSummary.reduce((s, u) => s + Number(u.count_lunas), 0);
+    totalPiutang = usersSummary.reduce((s, u) => s + Number(u.total_piutang), 0);
+  }
 
-  // ── Year options ──
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 3 }, (_, i) => currentYear - i);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm">
-          <Wallet className="w-7 h-7" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 leading-tight">Tagihan</h1>
-          <p className="text-sm text-gray-500 font-medium">Monitor status pembayaran invoice dari seluruh outlet</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {selectedUser ? (
+             <button 
+                onClick={() => { setSelectedUser(null); setSearch(""); }}
+                className="p-3 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 rounded-2xl shadow-sm transition-colors"
+                title="Kembali ke daftar Sales"
+              >
+                <ArrowLeft className="w-6 h-6" />
+             </button>
+          ) : (
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-2xl shadow-sm">
+              <Wallet className="w-7 h-7" />
+            </div>
+          )}
+          <div>
+            <h1 className="text-2xl font-black text-gray-900 leading-tight">
+              {selectedUser ? `Tagihan — ${selectedUser.name}` : "Tagihan per Sales"}
+            </h1>
+            <p className="text-sm text-gray-500 font-medium">
+              {selectedUser ? "Detail nota dan status pembayaran outlet" : "Pilih akun sales untuk melihat detail tagihan"}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -248,8 +355,7 @@ export default function Tagihan() {
         </div>
       )}
 
-      {/* ── Summary Cards ── */}
-      {loading ? (
+      {(selectedUser ? salesLoading : summaryLoading) ? (
         <div className="flex flex-wrap gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex-1 min-w-[140px] bg-white border border-gray-200 rounded-2xl p-4 shadow-sm animate-pulse">
@@ -292,165 +398,259 @@ export default function Tagihan() {
         </div>
       )}
 
-      {/* ── Filter Bar ── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative w-full sm:w-72">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Cari nota / outlet..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm text-sm outline-none font-medium"
-          />
+      <div className="flex flex-col sm:flex-row gap-3 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+        {selectedUser && (
+          <>
+            <div className="relative w-full sm:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Cari nota / outlet..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 text-sm outline-none font-medium"
+              />
+            </div>
+            
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 font-medium"
+            >
+              <option value="BELUM_LUNAS,CICILAN">Belum Lunas / Cicilan</option>
+              <option value="BELUM_LUNAS">Belum Lunas</option>
+              <option value="CICILAN">Cicilan</option>
+              <option value="LUNAS">Lunas</option>
+              <option value="ALL">Semua Status</option>
+            </select>
+
+          </>
+        )}
+        
+        <div className="flex gap-3 ml-auto w-full sm:w-auto">
+          <select
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            className="w-full sm:w-36 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 font-medium"
+          >
+            <option value="">Semua Bulan</option>
+            {MONTHS.map((m, i) => <option key={i} value={String(i + 1)}>{m}</option>)}
+          </select>
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            className="w-full sm:w-28 px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50 font-medium"
+          >
+            {yearOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+          </select>
         </div>
-        
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="w-full sm:w-auto px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
-        >
-          <option value="BELUM_LUNAS,CICILAN">Belum Lunas / Cicilan</option>
-          <option value="BELUM_LUNAS">Belum Lunas</option>
-          <option value="CICILAN">Cicilan</option>
-          <option value="LUNAS">Lunas</option>
-          <option value="ALL">Semua</option>
-        </select>
-        
-        <select
-          value={filterYear}
-          onChange={(e) => setFilterYear(e.target.value)}
-          className="w-full sm:w-32 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
-        >
-          {yearOptions.map((y) => <option key={y} value={String(y)}>{y}</option>)}
-        </select>
-        
-        <select
-          value={filterMonth}
-          onChange={(e) => setFilterMonth(e.target.value)}
-          className="w-full sm:w-40 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white font-medium shadow-sm"
-        >
-          <option value="">Semua Bulan</option>
-          {MONTHS.map((m, i) => <option key={i} value={String(i + 1)}>{m}</option>)}
-        </select>
       </div>
 
-      {/* ── Tabel Tagihan ── */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-blue-600 text-white text-sm">
-                <th className="px-5 py-4 font-bold whitespace-nowrap">No Nota</th>
-                <th className="px-5 py-4 font-bold">Outlet</th>
-                <th className="px-5 py-4 font-bold whitespace-nowrap">Tgl Transaksi</th>
-                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Total Tagihan</th>
-                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Deposit</th>
-                <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Sisa Tagihan</th>
-                <th className="px-5 py-4 font-bold whitespace-nowrap">Status</th>
-                <th className="px-5 py-4 font-bold text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-full"></div></td>
-                    ))}
-                  </tr>
-                ))
-              ) : paginatedSales.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-gray-500 font-medium text-base">
-                    {filterStatus.includes("BELUM_LUNAS") || filterStatus.includes("CICILAN")
-                      ? "🎉 Tidak ada tagihan yang belum lunas!"
-                      : "Tidak ada data yang sesuai filter."}
-                  </td>
+      {selectedUser && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-4">
+          <div className="flex overflow-x-auto overflow-y-hidden border-b border-gray-200 scrollbar-hide">
+            {["Semua", ...DAYS].map((d) => {
+              const isSelected = d === filterDay;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setFilterDay(d)}
+                  className={`whitespace-nowrap flex-1 py-4 px-6 text-center text-sm font-bold border-b-2 transition-colors relative ${
+                    isSelected
+                      ? "border-blue-600 text-blue-700 bg-blue-50/50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {d === "Semua" ? "SEMUA HARI" : d.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!selectedUser ? (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-blue-600 text-white text-sm">
+                  <th className="px-5 py-4 font-bold whitespace-nowrap">Nama Sales</th>
+                  <th className="px-5 py-4 font-bold text-center">Belum Lunas</th>
+                  <th className="px-5 py-4 font-bold text-center">Cicilan</th>
+                  <th className="px-5 py-4 font-bold text-center">Lunas</th>
+                  <th className="px-5 py-4 font-bold text-right">Total Piutang</th>
+                  <th className="px-5 py-4 font-bold text-center w-24">Detail</th>
                 </tr>
-              ) : (
-                paginatedSales.map((sale) => {
-                  const grandTotal = Number(sale.grand_total) || 0;
-                  const deposit = Number(sale.deposit) || 0;
-                  const sisa = Math.max(0, grandTotal - deposit);
-                  const ps = sale.payment_status ?? "BELUM_LUNAS";
-                  return (
-                    <tr
-                      key={sale.id}
-                      className={`hover:bg-blue-50/50 transition-colors ${
-                        ps === "BELUM_LUNAS" ? "bg-red-50/30" : ps === "CICILAN" ? "bg-amber-50/30" : ""
-                      }`}
-                    >
-                      <td className="px-5 py-3">
-                        <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
-                          {sale.nota_number}
-                        </span>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {summaryLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-full"></div></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : paginatedSummary.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center text-gray-500 font-medium">
+                      Tidak ada data tagihan.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedSummary.map((u) => (
+                    <tr key={u.user_id} className="hover:bg-blue-50/50 transition-colors">
+                      <td className="px-5 py-4 font-bold text-gray-900 flex items-center gap-2">
+                        <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        {u.user_name}
                       </td>
-                      <td className="px-5 py-3">
-                        {sale.outlet ? (
-                          <div className="flex flex-col">
-                            <span className="font-bold text-gray-900">{sale.outlet.name}</span>
-                            <span className="text-xs text-gray-500">{sale.outlet.code}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">#{sale.outlet_id}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 font-medium text-gray-600 whitespace-nowrap">
-                        {new Date(sale.transaction_date).toLocaleDateString("id-ID", {
-                          day: "2-digit", month: "short", year: "numeric"
-                        })}
-                      </td>
-                      <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
-                        {fmtRp(grandTotal)}
-                      </td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap">
-                        <span className={`font-semibold ${deposit > 0 ? "text-emerald-600" : "text-gray-400"}`}>
-                          {deposit > 0 ? fmtRp(deposit) : "—"}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap">
-                        <span className={`font-black ${sisa > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                          {sisa > 0 ? fmtRp(sisa) : "✓ Lunas"}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 whitespace-nowrap">
-                        <PaymentChip status={ps as PaymentStatus} />
-                      </td>
-                      <td className="px-5 py-3 text-center">
+                      <td className="px-5 py-4 text-center font-bold text-red-600">{u.count_belum_lunas}</td>
+                      <td className="px-5 py-4 text-center font-bold text-amber-600">{u.count_cicilan}</td>
+                      <td className="px-5 py-4 text-center font-bold text-emerald-600">{u.count_lunas}</td>
+                      <td className="px-5 py-4 text-right font-black text-gray-900">{fmtRp(u.total_piutang)}</td>
+                      <td className="px-5 py-4 text-center">
                         <button
-                          onClick={() => {
-                            setPayDialog(sale);
-                            setDepositInput(String(deposit));
-                          }}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors"
-                          title="Update Pembayaran"
+                          onClick={() => setSelectedUser({ id: u.user_id, name: u.user_name })}
+                          className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors"
+                          title="Lihat Detail Tagihan"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {!summaryLoading && usersSummary.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={usersSummary.length}
+              itemsPerPage={itemsPerPage}
+            />
+          )}
         </div>
-        
-        {!loading && sales.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            totalItems={sales.length}
-            itemsPerPage={itemsPerPage}
-          />
-        )}
-      </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-blue-600 text-white text-sm">
+                  <th className="px-5 py-4 font-bold whitespace-nowrap">No Nota</th>
+                  <th className="px-5 py-4 font-bold">Outlet</th>
+                  <th className="px-5 py-4 font-bold whitespace-nowrap">Tgl Transaksi</th>
+                  <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Total Tagihan</th>
+                  <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Deposit</th>
+                  <th className="px-5 py-4 font-bold text-right whitespace-nowrap">Sisa Tagihan</th>
+                  <th className="px-5 py-4 font-bold whitespace-nowrap">Status</th>
+                  <th className="px-5 py-4 font-bold text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {salesLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 8 }).map((_, j) => (
+                        <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded animate-pulse w-full"></div></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : paginatedSales.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-12 text-center text-gray-500 font-medium text-base">
+                      {filterStatus.includes("BELUM_LUNAS") || filterStatus.includes("CICILAN")
+                        ? "🎉 Tidak ada tagihan yang belum lunas!"
+                        : "Tidak ada data yang sesuai filter."}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedSales.map((sale) => {
+                    const grandTotal = Number(sale.grand_total) || 0;
+                    const deposit = Number(sale.deposit) || 0;
+                    const sisa = Math.max(0, grandTotal - deposit);
+                    const ps = sale.payment_status ?? "BELUM_LUNAS";
+                    return (
+                      <tr
+                        key={sale.id}
+                        className={`hover:bg-blue-50/50 transition-colors ${
+                          ps === "BELUM_LUNAS" ? "bg-red-50/30" : ps === "CICILAN" ? "bg-amber-50/30" : ""
+                        }`}
+                      >
+                        <td className="px-5 py-3">
+                          <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {sale.nota_number}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          {sale.outlet ? (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-gray-900">{sale.outlet.name}</span>
+                              <span className="text-xs text-gray-500">{sale.outlet.code} — {sale.outlet.visit_day ?? "-"}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500">#{sale.outlet_id}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 font-medium text-gray-600 whitespace-nowrap">
+                          {new Date(sale.transaction_date).toLocaleDateString("id-ID", {
+                            day: "2-digit", month: "short", year: "numeric"
+                          })}
+                        </td>
+                        <td className="px-5 py-3 text-right font-bold text-gray-900 whitespace-nowrap">
+                          {fmtRp(grandTotal)}
+                        </td>
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                          <span className={`font-semibold ${deposit > 0 ? "text-emerald-600" : "text-gray-400"}`}>
+                            {deposit > 0 ? fmtRp(deposit) : "—"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                          <span className={`font-black ${sisa > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                            {sisa > 0 ? fmtRp(sisa) : "✓ Lunas"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 whitespace-nowrap">
+                          <PaymentChip status={ps as PaymentStatus} />
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              setPayDialog(sale);
+                              setDepositInput(String(deposit));
+                            }}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-xl transition-colors"
+                            title="Update Pembayaran"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          {!salesLoading && filteredSales.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredSales.length}
+              itemsPerPage={itemsPerPage}
+            />
+          )}
+        </div>
+      )}
 
-      {/* ── Dialog Update Pembayaran ── */}
       <Modal
         open={payDialog !== null}
         onClose={() => !saving && setPayDialog(null)}

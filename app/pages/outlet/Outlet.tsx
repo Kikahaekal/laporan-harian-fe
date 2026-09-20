@@ -112,6 +112,8 @@ export default function Outlet() {
   // Delete confirm
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [checkingDelete, setCheckingDelete] = useState(false);
+  const [conflictModal, setConflictModal] = useState<{ open: boolean; outletId: number | null; relations: any }>({ open: false, outletId: null, relations: null });
 
   // Bulk select
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -238,6 +240,53 @@ export default function Outlet() {
       showSnack(err.response?.data?.message || "Gagal menyimpan outlet.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  
+  const handleCheckDelete = async (id: number) => {
+    setCheckingDelete(true);
+    try {
+      const res = await apiBe.get(`/api/web/outlets/${id}/check-relations`);
+      if (res.data.total_relations > 0) {
+        setConflictModal({ open: true, outletId: id, relations: res.data });
+      } else {
+        setDeleteId(id);
+      }
+    } catch {
+      showSnack("Gagal memeriksa data outlet.", "error");
+    } finally {
+      setCheckingDelete(false);
+    }
+  };
+
+  const handleForceDelete = async () => {
+    if (!conflictModal.outletId) return;
+    setDeleting(true);
+    try {
+      await apiBe.delete(`/api/web/outlets/${conflictModal.outletId}?force=1`);
+      await fetchOutlets();
+      setConflictModal({ open: false, outletId: null, relations: null });
+      showSnack("Outlet dan seluruh transaksinya berhasil dihapus.");
+    } catch {
+      showSnack("Gagal menghapus paksa outlet.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDetachUsers = async () => {
+    if (!conflictModal.outletId) return;
+    setDeleting(true);
+    try {
+      await apiBe.post(`/api/web/outlets/${conflictModal.outletId}/detach-users`);
+      await fetchOutlets();
+      setConflictModal({ open: false, outletId: null, relations: null });
+      showSnack("Akses user berhasil dilepaskan dari outlet ini.");
+    } catch {
+      showSnack("Gagal melepaskan akses user.", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -386,8 +435,9 @@ export default function Outlet() {
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setDeleteId(row.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          onClick={() => handleCheckDelete(row.id)}
+                          disabled={checkingDelete}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                           title="Hapus"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -499,6 +549,59 @@ export default function Outlet() {
               <MapPin className="w-4 h-4" /> Peta
             </button>
           </div>
+        </div>
+      </Modal>
+
+      
+      {/* Conflict Modal */}
+      <Modal
+        open={conflictModal.open}
+        onClose={() => setConflictModal({ open: false, outletId: null, relations: null })}
+        title={
+          <div className="flex items-center gap-2 text-amber-600">
+            <AlertCircle className="w-5 h-5" />
+            <span>Peringatan Konflik Penghapusan</span>
+          </div>
+        }
+        actions={
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+            <button
+              onClick={() => setConflictModal({ open: false, outletId: null, relations: null })}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleDetachUsers}
+              disabled={deleting}
+              className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg"
+            >
+              {deleting ? "Memproses..." : "Lepaskan Akses User"}
+            </button>
+            <button
+              onClick={handleForceDelete}
+              disabled={deleting}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+            >
+              {deleting ? "Memproses..." : "Hapus Paksa Semua"}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700 text-sm">
+            Outlet ini tidak dapat langsung dihapus karena masih terhubung dengan data berikut:
+          </p>
+          <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
+            {conflictModal.relations?.users_count > 0 && <li>Terhubung dengan <strong>{conflictModal.relations.users_count}</strong> Akun Sales</li>}
+            {conflictModal.relations?.sales_count > 0 && <li>Memiliki <strong>{conflictModal.relations.sales_count}</strong> Riwayat Transaksi (Dropping/Tagihan)</li>}
+            {conflictModal.relations?.closed_photos_count > 0 && <li>Memiliki <strong>{conflictModal.relations.closed_photos_count}</strong> Foto Tutup Outlet</li>}
+            {conflictModal.relations?.sales_reports_count > 0 && <li>Memiliki <strong>{conflictModal.relations.sales_reports_count}</strong> Riwayat Laporan Harian/Bulanan</li>}
+          </ul>
+          <p className="text-sm text-gray-500 border-t pt-3 mt-3">
+            Pilih <strong>Lepaskan Akses User</strong> jika Anda hanya ingin outlet ini tidak muncul lagi di HP Sales tanpa menghapus riwayat transaksinya. 
+            Pilih <strong>Hapus Paksa Semua</strong> jika Anda benar-benar ingin menghilangkan outlet ini beserta seluruh riwayatnya dari database.
+          </p>
         </div>
       </Modal>
 

@@ -87,13 +87,27 @@ export default function MonitoringDetail() {
     const load = async () => {
       setPhotoLoading(true);
       try {
-        // Fetch dari history dan ambil photo terbaru hari itu
         const res = await apiBe.get(`/api/web/outlets/${nota.outlet_id}/closed-photos`);
         if (!active) return;
         
         const list: ClosedPhoto[] = res.data?.data ?? [];
-        const expectedDate = (nota.transaction_date ?? "").slice(0, 10);
-        const match = list.find(p => (p.closed_date ?? "").slice(0, 10) === expectedDate) ?? null;
+        
+        // Helper: normalize any date string to YYYY-MM-DD in local timezone
+        const toLocalDate = (d: string) => {
+          if (!d) return "";
+          const dt = new Date(d);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        };
+        
+        const expectedDate = toLocalDate(nota.transaction_date ?? "");
+        
+        // Try exact date match first
+        let match = list.find(p => toLocalDate(p.closed_date ?? "") === expectedDate) ?? null;
+        
+        // If no exact match, use the most recent photo (list is already sorted desc)
+        if (!match && list.length > 0) {
+          match = list[0];
+        }
         
         setClosedPhoto(match);
       } catch (err: any) {

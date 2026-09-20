@@ -80,7 +80,8 @@ export function fmtDate(s: string) {
 export const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 export function weekOfMonth(s: string) {
   if (!s) return 0;
-  return Math.ceil(new Date(s).getDate() / 7);
+  const jakartaDate = new Date(new Date(s).toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+  return Math.ceil(jakartaDate.getDate() / 7);
 }
 export function buildYears() {
   const y = new Date().getFullYear();
@@ -563,7 +564,7 @@ export function OutletCard({
   const hasDropping = useMemo(() => sales.some((s) => s.status === "DROPPING"), [sales]);
 
   useEffect(() => {
-    if (!expectedDate || hasInvoicedOnDate || !hasDropping) {
+    if (!expectedDate || hasInvoicedOnDate) {
       setClosedPhoto(null);
       return;
     }
@@ -574,7 +575,15 @@ export function OutletCard({
         const res = await apiBe.get(`/api/web/outlets/${outlet.id}/closed-photos`);
         if (!active) return;
         const list: ClosedPhoto[] = res.data?.data ?? [];
-        const match = list.find((p) => (p.closed_date ?? "").slice(0, 10) === expectedDate) ?? null;
+        
+        // Helper: normalize any date string to YYYY-MM-DD in local timezone
+        const toLocalDate = (d: string) => {
+          if (!d) return "";
+          const dt = new Date(d);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        };
+        
+        const match = list.find((p) => toLocalDate(p.closed_date ?? "") === expectedDate) ?? null;
         setClosedPhoto(match);
       } catch (err: any) {
         if (!active) return;
@@ -588,7 +597,7 @@ export function OutletCard({
     return () => {
       active = false;
     };
-  }, [expectedDate, hasInvoicedOnDate, hasDropping, outlet.id]);
+  }, [expectedDate, hasInvoicedOnDate, outlet.id]);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-4 overflow-hidden">
@@ -630,7 +639,7 @@ export function OutletCard({
 
         {/* Cek status Toko Tutup */}
         <div className="flex items-center gap-2">
-          {expectedDate && hasDropping && !hasInvoicedOnDate && closedPhoto && (
+          {expectedDate && !hasInvoicedOnDate && closedPhoto && (
             <>
               <span className="px-2.5 py-1 bg-red-100 text-red-800 font-bold text-xs rounded shadow-sm">
                 TUTUP
@@ -643,7 +652,7 @@ export function OutletCard({
               </button>
             </>
           )}
-          {expectedDate && hasDropping && !hasInvoicedOnDate && !closedPhoto && photoLoading && (
+          {expectedDate && !hasInvoicedOnDate && !closedPhoto && photoLoading && (
             <span className="px-2 py-1 flex items-center gap-1 text-xs font-medium text-gray-500">
               <Loader2 className="w-3 h-3 animate-spin" /> Cek tutup...
             </span>

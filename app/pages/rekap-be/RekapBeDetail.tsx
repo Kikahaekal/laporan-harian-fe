@@ -45,13 +45,19 @@ const DAYS_ID = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 const DAY_JS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 function fmtRupiah(val: string | number) { return Number(val || 0).toLocaleString("id-ID"); }
+
+function toJakartaDate(s: string) {
+  if (!s) return new Date();
+  return new Date(new Date(s).toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+}
+
 function fmtDate(s: string) {
   if (!s) return "-";
-  const d = new Date(s);
+  const d = toJakartaDate(s);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
-function weekOfMonth(s: string) { return Math.ceil(new Date(s).getDate() / 7); }
-function dayName(s: string) { return DAY_JS[new Date(s).getDay()]; }
+function weekOfMonth(s: string) { return Math.ceil(toJakartaDate(s).getDate() / 7); }
+function dayName(s: string) { return DAY_JS[toJakartaDate(s).getDay()]; }
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 function buildYears(): number[] {
   const y = new Date().getFullYear();

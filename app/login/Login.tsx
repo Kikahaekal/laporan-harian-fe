@@ -39,6 +39,7 @@ const Login = () => {
     <div className="min-h-screen flex justify-center items-center bg-gray-50 p-4">
       <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md border border-gray-100">
         <div className="text-center mb-8">
+          <img src="/logo.png" alt="Logo" className="w-24 h-24 mx-auto mb-4 object-contain rounded-xl" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Selamat Datang!</h1>
           <p className="text-sm text-gray-500">Silakan masuk dengan akun Anda untuk mengakses sistem POS.</p>
         </div>

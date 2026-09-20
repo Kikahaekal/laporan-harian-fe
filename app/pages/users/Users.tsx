@@ -13,7 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
-  Info
+  Info,
+  Copy
 } from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import { TableRowsSkeleton } from "../../components/TableSkeleton";
@@ -30,8 +31,10 @@ interface OutletSimple {
   id: number;
   code: string;
   name: string;
+  visit_day?: string;
 }
 
+const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 const ROLES = ["admin", "sales"];
 const EMPTY_FORM = { name: "", email: "", password: "", role: "sales" };
 
@@ -105,12 +108,16 @@ export default function Users() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // ── Assign Outlet state ────────────────────────────────────────────────────
+  const [duplicateTarget, setDuplicateTarget] = useState<UserData | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+
   const [outletDialogUser, setOutletDialogUser] = useState<UserData | null>(null);
   const [allOutlets, setAllOutlets] = useState<OutletSimple[]>([]);
   const [userOutlets, setUserOutlets] = useState<OutletSimple[]>([]);
   const [selectedOutletIds, setSelectedOutletIds] = useState<Set<number>>(new Set());
   const [outletLoading, setOutletLoading] = useState(false);
+  const [outletSearch, setOutletSearch] = useState("");
+  const [outletDayFilter, setOutletDayFilter] = useState("Semua");
 
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
     open: false, msg: "", severity: "success",
@@ -231,10 +238,27 @@ export default function Users() {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!duplicateTarget) return;
+    setDuplicating(true);
+    try {
+      await apiBe.post(`/api/web/users/${duplicateTarget.id}/duplicate`);
+      await fetchUsers();
+      setDuplicateTarget(null);
+      showSnack(`Pengguna ${duplicateTarget.name} berhasil diduplikat.`);
+    } catch (err: any) {
+      showSnack(err.response?.data?.message || "Gagal menduplikat pengguna.", "error");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   // ── Assign/Unassign Outlet ─────────────────────────────────────────────────
   const openOutletDialog = (user: UserData) => {
     setOutletDialogUser(user);
     setSelectedOutletIds(new Set());
+    setOutletSearch("");
+    setOutletDayFilter("Semua");
     fetchUserOutlets(user.id);
   };
 
@@ -264,9 +288,20 @@ export default function Users() {
     }
   };
 
-  // Outlet yang belum di-assign ke user ini
+  // Outlet yang belum di-assign ke user ini, ditambah filter pencarian dan hari kunjungan
   const availableOutlets = allOutlets.filter(
-    (o) => !userOutlets.some((uo) => uo.id === o.id)
+    (o) => {
+      // 1. Cek apakah belum di assign
+      if (userOutlets.some((uo) => uo.id === o.id)) return false;
+      // 2. Cek pencarian nama/kode
+      const searchMatch = !outletSearch.trim() || 
+        o.name.toLowerCase().includes(outletSearch.toLowerCase()) || 
+        o.code.toLowerCase().includes(outletSearch.toLowerCase());
+      // 3. Cek filter hari
+      const dayMatch = outletDayFilter === "Semua" || o.visit_day === outletDayFilter;
+      
+      return searchMatch && dayMatch;
+    }
   );
 
   const deleteTarget = users.find((u) => u.id === deleteId);
@@ -365,6 +400,13 @@ export default function Users() {
                           <Store className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => setDuplicateTarget(row)}
+                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Duplikat User & Outlet"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleOpenEdit(row)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit"
@@ -413,6 +455,30 @@ export default function Users() {
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-bold text-gray-900 mb-2">Assign Outlet Baru</h4>
+            
+            <div className="flex flex-col gap-2 mb-3">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cari nama/kode outlet..."
+                  value={outletSearch}
+                  onChange={(e) => setOutletSearch(e.target.value)}
+                  className="block w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white outline-none"
+                />
+              </div>
+              <select
+                value={outletDayFilter}
+                onChange={(e) => setOutletDayFilter(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+              >
+                <option value="Semua">Semua Hari</option>
+                {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+
             <div className="flex flex-col gap-3">
               <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2 bg-gray-50/50">
                 {availableOutlets.length === 0 ? (
@@ -576,6 +642,24 @@ export default function Users() {
         <p className="text-gray-600">
           Hapus pengguna <strong className="text-gray-900">{deleteTarget?.name}</strong> ({deleteTarget?.email})?
           Aksi ini tidak bisa dibatalkan.
+        </p>
+      </Modal>
+
+      <Modal
+        open={duplicateTarget !== null}
+        onClose={() => setDuplicateTarget(null)}
+        title="Duplikat Pengguna?"
+        actions={
+          <>
+            <button onClick={() => setDuplicateTarget(null)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">Batal</button>
+            <button onClick={handleDuplicate} disabled={duplicating} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-2">
+              {duplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Duplikat"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-gray-600">
+          Apakah Anda yakin ingin menduplikat pengguna <strong className="text-gray-900">{duplicateTarget?.name}</strong> beserta seluruh outlet yang tertaut dengannya?
         </p>
       </Modal>
 

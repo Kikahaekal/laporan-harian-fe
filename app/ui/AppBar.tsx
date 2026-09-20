@@ -84,7 +84,7 @@ export default function MenuAppBar() {
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 p-1.5 rounded-full hover:bg-gray-100 transition-colors focus:outline-none"
             >
-              <UserCircle className="w-7 h-7 text-gray-600" />
+              <img src="/logo.png" alt="Admin" className="w-8 h-8 rounded-full object-cover border border-gray-200 bg-white p-0.5" />
             </button>
             
             {/* PROFILE DROPDOWN */}
@@ -127,10 +127,13 @@ export default function MenuAppBar() {
         }`}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
-          <span className="font-bold text-lg text-emerald-700">POS Distributor</span>
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+            <span className="font-bold text-sm text-emerald-700 leading-tight">POS Pinang Maju<br/>Sejahtera</span>
+          </div>
           <button 
             onClick={() => setIsDrawerOpen(false)}
-            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors"
+            className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors flex-shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

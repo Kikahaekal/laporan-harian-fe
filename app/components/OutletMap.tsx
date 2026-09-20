@@ -1,7 +1,8 @@
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { type OutletData } from "../pages/data/constant";
+import { useEffect } from "react";
 
 // Fix Leaflet's default icon issue with webpack/vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -10,6 +11,20 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
+
+function MapUpdater({ outlets }: { outlets: OutletData[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const validOutlets = outlets.filter((o) => o.coor_latitude && o.coor_longitude);
+    if (validOutlets.length > 0) {
+      const bounds = L.latLngBounds(
+        validOutlets.map((o) => [Number(o.coor_latitude), Number(o.coor_longitude)])
+      );
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [outlets, map]);
+  return null;
+}
 
 export function OutletMap({ outlets }: { outlets: OutletData[] }) {
   // Center map on the average coordinates or a default center (e.g., Jakarta / specific city)
@@ -30,6 +45,7 @@ export function OutletMap({ outlets }: { outlets: OutletData[] }) {
         scrollWheelZoom={false} 
         style={{ width: "100%", height: "100%", zIndex: 0 }}
       >
+        <MapUpdater outlets={outlets} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
