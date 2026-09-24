@@ -25,6 +25,7 @@ interface UserData {
   name: string;
   email: string;
   role?: string;
+  schedule_mode?: "normal" | "previous_workday";
 }
 
 interface OutletSimple {
@@ -36,7 +37,7 @@ interface OutletSimple {
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 const ROLES = ["admin", "sales"];
-const EMPTY_FORM = { name: "", email: "", password: "", role: "sales" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "sales", schedule_mode: "normal" as "normal" | "previous_workday" };
 
 // ─── Component: Dialog Modal ─────────────────────────────────────────────────
 function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
@@ -185,7 +186,13 @@ export default function Users() {
   const handleOpenEdit = (user: UserData) => {
     setIsEdit(true);
     setEditId(user.id);
-    setFormData({ name: user.name, email: user.email, password: "", role: user.role ?? "sales" });
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role ?? "sales",
+      schedule_mode: user.schedule_mode ?? "normal",
+    });
     setShowPw(false);
     setOpen(true);
   };
@@ -205,6 +212,7 @@ export default function Users() {
         name: formData.name,
         email: formData.email,
         role: formData.role,
+        schedule_mode: formData.role === "sales" ? formData.schedule_mode : "normal",
       };
       if (formData.password) payload.password = formData.password;
 
@@ -361,15 +369,16 @@ export default function Users() {
                 <th className="px-4 py-3.5 font-semibold">Nama</th>
                 <th className="px-4 py-3.5 font-semibold">Email</th>
                 <th className="px-4 py-3.5 font-semibold">Role</th>
+                <th className="px-4 py-3.5 font-semibold">Jadwal</th>
                 <th className="px-4 py-3.5 font-semibold text-center w-32">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
               {loading ? (
-                <TableRowsSkeleton rows={itemsPerPage} cols={5} />
+                <TableRowsSkeleton rows={itemsPerPage} cols={6} />
               ) : paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     Tidak ada data pengguna.
                   </td>
                 </tr>
@@ -389,6 +398,19 @@ export default function Users() {
                       }`}>
                         {row.role ?? "sales"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.role === "sales" ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                          row.schedule_mode === "previous_workday"
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-gray-50 text-gray-700 border-gray-200"
+                        }`}>
+                          {row.schedule_mode === "previous_workday" ? "Mundur hari kerja" : "Normal"}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -622,6 +644,41 @@ export default function Users() {
               ))}
             </select>
           </div>
+          {formData.role === "sales" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pengaturan Jadwal Outlet</label>
+              <div className="grid grid-cols-1 gap-2" role="radiogroup" aria-label="Pengaturan jadwal outlet">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={formData.schedule_mode === "normal"}
+                  onClick={() => setFormData({ ...formData, schedule_mode: "normal" })}
+                  className={`border rounded-lg px-3 py-2.5 text-left transition-colors ${
+                    formData.schedule_mode === "normal"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">Jadwal normal</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">Outlet mengikuti hari kunjungan yang terdaftar.</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={formData.schedule_mode === "previous_workday"}
+                  onClick={() => setFormData({ ...formData, schedule_mode: "previous_workday" })}
+                  className={`border rounded-lg px-3 py-2.5 text-left transition-colors ${
+                    formData.schedule_mode === "previous_workday"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">Mundur ke hari kerja sebelumnya</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">Jadwal Senin tampil Sabtu, jadwal Selasa tampil Senin. Minggu tidak ada jadwal.</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 

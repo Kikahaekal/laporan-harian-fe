@@ -92,31 +92,36 @@ export default function RekapBeDetail() {
   const now = new Date();
   const initYear = Number(searchParams.get("year")) || now.getFullYear();
   const initMonth = Number(searchParams.get("month")) || (now.getMonth() + 1);
+  const initMainTab = Number(searchParams.get("tab")) === 1 ? 1 : 0;
+  const initDayTab = Math.min(Math.max(Number(searchParams.get("day")) || 0, 0), DAYS_ID.length - 1);
+  const initWeekFilter = Math.max(Number(searchParams.get("week")) || 0, 0);
+  const initUser = searchParams.get("user") || "all";
+  const initSearch = searchParams.get("q") || "";
 
   // Selector
   const [selectedYear, setSelectedYear] = useState(initYear);
   const [selectedMonth, setSelectedMonth] = useState(initMonth);
 
   // Main tab: 0 = Ringkasan, 1 = Per Hari
-  const [mainTab, setMainTab] = useState(0);
+  const [mainTab, setMainTab] = useState(initMainTab);
 
   // Per-hari state
-  const [dayTab, setDayTab] = useState(0);
-  const [weekFilter, setWeekFilter] = useState(0);
-  const [search, setSearch] = useState("");
+  const [dayTab, setDayTab] = useState(initDayTab);
+  const [weekFilter, setWeekFilter] = useState(initWeekFilter);
+  const [search, setSearch] = useState(initSearch);
   
   // Accordion state
   const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
 
   // User filter state
   const [salesUsers, setSalesUsers] = useState<{id: number; name: string}[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<string>(initUser);
 
   useEffect(() => {
     apiBe.get("/api/web/users").then(res => {
       const raw = res.data;
       const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
-      setSalesUsers(list);
+      setSalesUsers(list.filter((user: { role?: string }) => user.role === "sales"));
     }).catch(console.error);
   }, []);
 
@@ -134,8 +139,17 @@ export default function RekapBeDetail() {
 
   // Sync URL
   useEffect(() => {
-    setSearchParams({ year: String(selectedYear), month: String(selectedMonth) }, { replace: true });
-  }, [selectedYear, selectedMonth, setSearchParams]);
+    const params: Record<string, string> = {
+      year: String(selectedYear),
+      month: String(selectedMonth),
+    };
+    if (mainTab === 1) params.tab = "1";
+    if (dayTab > 0) params.day = String(dayTab);
+    if (weekFilter > 0) params.week = String(weekFilter);
+    if (selectedUser !== "all") params.user = selectedUser;
+    if (search.trim()) params.q = search;
+    setSearchParams(params, { replace: true });
+  }, [selectedYear, selectedMonth, mainTab, dayTab, weekFilter, selectedUser, search, setSearchParams]);
 
   // Fetch
   useEffect(() => {
@@ -146,7 +160,12 @@ export default function RekapBeDetail() {
         const from = `${selectedYear}-${pad2(selectedMonth)}-01`;
         const to = `${selectedYear}-${pad2(selectedMonth)}-${pad2(lastDay)}`;
         const res = await apiBe.get("/api/web/sales", {
-          params: { from, to, per_page: 1000 },
+          params: {
+            from,
+            to,
+            per_page: 1000,
+            ...(selectedUser !== "all" ? { user_id: selectedUser } : {}),
+          },
           signal: ctrl.signal,
         });
         const raw = res.data;
@@ -161,7 +180,7 @@ export default function RekapBeDetail() {
     };
     fetch();
     return () => ctrl.abort();
-  }, [selectedYear, selectedMonth, lastDay]);
+  }, [selectedYear, selectedMonth, selectedUser, lastDay]);
   
   const toggleWeekAccordion = (week: number) => {
     setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
@@ -172,7 +191,7 @@ export default function RekapBeDetail() {
   const filteredNotas = useMemo(() => {
     let result = allNotas;
     if (selectedUser !== "all") {
-      result = result.filter(n => n.user_id === Number(selectedUser));
+      result = result.filter(n => String(n.user_id) === selectedUser);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -235,7 +254,7 @@ export default function RekapBeDetail() {
   useEffect(() => {
     setOutletPage(1);
     setItemPage(1);
-  }, [search, selectedMonth, selectedYear]);
+  }, [search, selectedMonth, selectedYear, selectedUser]);
 
   // Per-minggu
   const perWeek = useMemo(() => {
@@ -327,7 +346,7 @@ export default function RekapBeDetail() {
           {!isLoading && allNotas.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold shadow-sm whitespace-nowrap">
-                {allNotas.length} nota bulan ini
+                {allNotas.length} nota {selectedUser === "all" ? "bulan ini" : "sales ini"}
               </span>
               {filteredNotas.length !== allNotas.length && (
                 <span className="px-3 py-1.5 border border-amber-200 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold shadow-sm whitespace-nowrap">

@@ -9,7 +9,8 @@ import {
   X,
   AlertCircle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import MapPicker from "../../components/MapPicker";
@@ -98,6 +99,8 @@ export default function Outlet() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterDay, setFilterDay] = useState("");
+  const [filterUser, setFilterUser] = useState("");
+  const [usersList, setUsersList] = useState<{id: number; name: string}[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -163,7 +166,9 @@ export default function Outlet() {
   const fetchOutlets = async () => {
     try {
       setLoading(true);
-      const res = await apiBe.get("/api/web/outlets");
+      const params: Record<string, string> = {};
+      if (filterUser) params.user_id = filterUser;
+      const res = await apiBe.get("/api/web/outlets", { params });
       const raw = res.data;
       setOutlets(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
     } catch {
@@ -173,7 +178,18 @@ export default function Outlet() {
     }
   };
 
-  useEffect(() => { fetchOutlets(); }, []);
+  const fetchUsers = async () => {
+    try {
+      const res = await apiBe.get("/api/web/users");
+      const raw = res.data;
+      setUsersList(Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []);
+    } catch {
+      // silently fail
+    }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchOutlets(); }, [filterUser]);
 
   const filtered = outlets.filter((o) => {
     const matchSearch = o.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -188,7 +204,7 @@ export default function Outlet() {
   // Reset to page 1 on search or filter
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, filterDay]);
+  }, [search, filterDay, filterUser]);
 
   const handleOpenAdd = () => {
     setIsEdit(false);
@@ -329,31 +345,66 @@ export default function Outlet() {
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative w-full sm:w-72">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative w-full sm:w-72">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Cari nama atau kode outlet..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Cari nama atau kode outlet..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm"
-          />
+          
+          <div className="relative w-full sm:w-56">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Users className="h-4 w-4 text-gray-400" />
+            </div>
+            <select
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white shadow-sm appearance-none"
+            >
+              <option value="">Semua User</option>
+              {usersList.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        
-        <div className="w-full sm:w-48">
-          <select
-            value={filterDay}
-            onChange={(e) => setFilterDay(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white shadow-sm"
-          >
-            <option value="">Semua Hari</option>
-            {VISIT_DAYS.map(day => (
-              <option key={day} value={day}>{day}</option>
-            ))}
-          </select>
+
+        {/* Day Tab Filter */}
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex overflow-x-auto overflow-y-hidden border-b border-gray-200 scrollbar-hide">
+            {["", ...VISIT_DAYS].map((day) => {
+              const isSelected = filterDay === day;
+              return (
+                <button
+                  key={day || "all-days"}
+                  onClick={() => setFilterDay(day)}
+                  className={`whitespace-nowrap px-6 py-4 text-sm font-bold border-b-2 transition-colors ${
+                    isSelected
+                      ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {day || "Semua Hari"}
+                </button>
+              );
+            })}
+          </div>
+          <div className="bg-emerald-50 px-5 py-3 flex items-center gap-2">
+            <span className="text-sm font-bold text-emerald-800">
+              Hari Kunjungan: {filterDay || "Semua Hari"}
+            </span>
+            <span className="text-sm text-gray-500 font-medium">
+              - {filtered.length} outlet
+            </span>
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import Dashboard from "~/pages/dashboard/Dashboard";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "New React Router App" },
+    { title: "POS Pinang Maju Sejahtera" },
     { name: "description", content: "Welcome to React Router!" },
   ];
 }
