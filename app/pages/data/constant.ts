@@ -19,10 +19,26 @@ export interface OutletMaster {
     name: string;
 }
 
+export interface OutletData {
+    id: number;
+    code: string;
+    name: string;
+    owner_name?: string;
+    address?: string;
+    phone?: string;
+    visit_day?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    coor_latitude?: number | string | null;
+    coor_longitude?: number | string | null;
+}
+
 export interface ItemMaster {
     id: number;
     code: string;
     name: string;
+    variant?: string | null;
+    image_url?: string | null;
     price?: number;
 }
 
@@ -182,7 +198,7 @@ export interface SaleItem {
     qty_returned: number;
     price_at_moment: string | number;
     subtotal: string | number;
-    item?: { id: number; code: string; name: string; stock?: number };
+    item?: { id: number; code: string; name: string; variant?: string | null; image_url?: string | null; stock?: number };
 }
 
 export interface Sale {
@@ -197,7 +213,7 @@ export interface Sale {
     payment_status?: PaymentStatus | null;
     note?: string | null;
     dropping_total?: string | number;
-    outlet?: { id: number; code: string; name: string; address?: string };
+    outlet?: { id: number; code: string; name: string; address?: string; visit_day?: string };
     user?: { id: number; name: string };
     sale_items?: SaleItem[];
 }

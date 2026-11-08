@@ -10,11 +10,13 @@ export default [
     route("/rekap", "pages/rekap/Rekap.tsx"),
     route("/rekap-be", "pages/rekap-be/RekapBe.tsx"),
     route("/rekap-be/detail", "pages/rekap-be/RekapBeDetail.tsx"),
+    route("/pemesanan", "pages/pemesanan/Pemesanan.tsx"),
     route("/monitoring/:id", "pages/monitoring/MonitoringDetail.tsx"),
     route("/outlet", "pages/outlet/Outlet.tsx"),
     route("/item", "pages/item/Item.tsx"),
     route("/tagihan", "pages/tagihan/Tagihan.tsx"),
-    route("/users", "pages/users/Users.tsx")
+    route("/users", "pages/users/Users.tsx"),
+    route("/developer", "pages/developer/DeveloperSettings.tsx")
   ]),
 
 ] satisfies RouteConfig;

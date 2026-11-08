@@ -31,7 +31,7 @@ interface SaleItem {
   qty_returned: number;
   price_at_moment: string | number;
   subtotal: string | number;
-  item?: { id: number; code: string; name: string; stock?: number };
+  item?: { id: number; code: string; name: string; variant?: string | null; image_url?: string | null; stock?: number };
 }
 
 export interface Sale {
@@ -178,7 +178,14 @@ function DroppingItemTable({
               return (
                 <tr key={it.id} className="hover:bg-gray-50/50">
                   <td className="px-3 py-2">
-                    <p className="font-semibold text-gray-800">{it.item?.name ?? `Item #${it.item_id}`}</p>
+                    <p className="font-semibold text-gray-800">
+                      {it.item?.name ?? `Item #${it.item_id}`}
+                      {it.item?.variant && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 rounded">
+                          {it.item.variant}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-gray-500">{it.item?.code}</p>
                   </td>
                   <td className="px-3 py-2 text-center">
@@ -486,15 +493,6 @@ function NotaCard({
       </div>
 
       {/* Modals & Toasts */}
-      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Hapus Nota?">
-        <p className="text-gray-600">Nota <strong className="text-gray-900">{sale.nota_number}</strong> akan dihapus permanen. Apakah Anda yakin?</p>
-      </Modal>
-      {deleteOpen && (
-        <div className="fixed z-[102] flex gap-2 right-4 bottom-4">
-           {/* Ini workaround karena layout modal saya memisahkan actions ke props, 
-               tapi untuk kemudahan saya pasang custom action div di bawah. */}
-        </div>
-      )}
       <Modal 
         open={deleteOpen} 
         onClose={() => setDeleteOpen(false)} 

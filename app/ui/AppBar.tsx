@@ -1,7 +1,7 @@
 import * as React from 'react';
 import {
   Menu, UserCircle, LayoutDashboard, FileText, BarChart2,
-  User, LogOut, Tags, Store, Users, Wallet, X
+  User, LogOut, Tags, Store, Users, Wallet, X, ClipboardList, Terminal
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from "~/context/AuthContext";
@@ -16,6 +16,7 @@ export default function MenuAppBar() {
 
   // ── Kanvas — monitoring transaksi Android ──
   const menuKanvas: Record<string, { title: string; icon: React.ReactNode }> = {
+    '/pemesanan': { title: 'Pemesanan (TO)', icon: <ClipboardList className="w-5 h-5 text-amber-600" /> },
     '/rekap-be': { title: 'Rekap Kanvas', icon: <BarChart2 className="w-5 h-5 text-indigo-500" /> },
   };
 
@@ -37,7 +38,14 @@ export default function MenuAppBar() {
     Object.entries(masterDataConfigFull).filter(([, v]) => isAdmin || !v.adminOnly)
   );
 
-  const allMenus = { ...menuLaporan, ...menuKanvas, ...masterDataConfig };
+  // ── Developer / Sistem (Admin Only) ──
+  const developerMenuConfig: Record<string, { title: string; icon: React.ReactNode }> = isAdmin
+    ? {
+        '/developer': { title: 'Pengaturan Developer', icon: <Terminal className="w-5 h-5 text-slate-700" /> },
+      }
+    : {};
+
+  const allMenus = { ...menuLaporan, ...menuKanvas, ...masterDataConfig, ...developerMenuConfig };
   const currentPath = Object.keys(allMenus).find((path) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
   );
@@ -160,6 +168,15 @@ export default function MenuAppBar() {
               {renderMenuList(masterDataConfig)}
             </ul>
           </div>
+
+          {isAdmin && (
+            <div>
+              <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Developer</h3>
+              <ul className="space-y-1">
+                {renderMenuList(developerMenuConfig)}
+              </ul>
+            </div>
+          )}
         </div>
       </aside>
     </>

@@ -14,7 +14,11 @@ import {
   CheckCircle,
   Loader2,
   Info,
-  Copy
+  Copy,
+  ClipboardList,
+  Truck,
+  ShieldCheck,
+  MapPin
 } from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import { TableRowsSkeleton } from "../../components/TableSkeleton";
@@ -26,6 +30,8 @@ interface UserData {
   email: string;
   role?: string;
   schedule_mode?: "normal" | "previous_workday";
+  sales_type?: "to" | "delivery" | null;
+  area_category?: "dalam_kota" | "luar_kota" | null;
 }
 
 interface OutletSimple {
@@ -36,8 +42,17 @@ interface OutletSimple {
 }
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-const ROLES = ["admin", "sales"];
-const EMPTY_FORM = { name: "", email: "", password: "", role: "sales", schedule_mode: "normal" as "normal" | "previous_workday" };
+const ROLES = ["sales", "admin"];
+
+const EMPTY_FORM = {
+  name: "",
+  email: "",
+  password: "",
+  role: "sales",
+  sales_type: "to" as "to" | "delivery",
+  area_category: "dalam_kota" as "dalam_kota" | "luar_kota",
+  schedule_mode: "previous_workday" as "normal" | "previous_workday",
+};
 
 // ─── Component: Dialog Modal ─────────────────────────────────────────────────
 function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
@@ -92,10 +107,19 @@ function Toast({ open, msg, type, onClose }: { open: boolean; msg: string; type:
   );
 }
 
+// Helper: tentukan apakah user adalah Sales TO, Pengantaran, atau Admin
+function getUserTabGroup(u: UserData): "to" | "delivery" | "admin" {
+  if (u.role === "admin") return "admin";
+  if (u.sales_type === "delivery") return "delivery";
+  return "to"; // default untuk sales existing maupun sales_type === 'to'
+}
+
 export default function Users() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"to" | "delivery" | "admin">("to");
+  const [areaFilter, setAreaFilter] = useState<"all" | "dalam_kota" | "luar_kota">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -162,23 +186,45 @@ export default function Users() {
 
   useEffect(() => { fetchUsers(); fetchAllOutlets(); }, []);
 
-  const filtered = users.filter(
-    (u) =>
+  const toCount = users.filter((u) => getUserTabGroup(u) === "to").length;
+  const deliveryCount = users.filter((u) => getUserTabGroup(u) === "delivery").length;
+  const adminCount = users.filter((u) => getUserTabGroup(u) === "admin").length;
+
+  const filtered = users.filter((u) => {
+    const matchTab = getUserTabGroup(u) === activeTab;
+    const matchSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-  );
+      u.email.toLowerCase().includes(search.toLowerCase());
+    const effectiveArea = u.area_category ?? "dalam_kota";
+    const matchArea =
+      activeTab === "admin" || areaFilter === "all" || effectiveArea === areaFilter;
+    return matchTab && matchSearch && matchArea;
+  });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedUsers = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [search, activeTab, areaFilter]);
 
   // ── User CRUD ──────────────────────────────────────────────────────────────
   const handleOpenAdd = () => {
     setIsEdit(false);
-    setFormData({ ...EMPTY_FORM });
+    setEditId(null);
+    const defaultRole = activeTab === "admin" ? "admin" : "sales";
+    const defaultSalesType = activeTab === "delivery" ? "delivery" : "to";
+    const defaultSchedule = defaultSalesType === "to" ? "previous_workday" : "normal";
+    const defaultArea = areaFilter !== "all" ? areaFilter : "dalam_kota";
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      role: defaultRole,
+      sales_type: defaultSalesType,
+      area_category: defaultArea,
+      schedule_mode: defaultSchedule,
+    });
     setShowPw(false);
     setOpen(true);
   };
@@ -186,12 +232,15 @@ export default function Users() {
   const handleOpenEdit = (user: UserData) => {
     setIsEdit(true);
     setEditId(user.id);
+    const sType = user.sales_type ?? (user.schedule_mode === "previous_workday" ? "to" : "to");
     setFormData({
       name: user.name,
       email: user.email,
       password: "",
       role: user.role ?? "sales",
-      schedule_mode: user.schedule_mode ?? "normal",
+      sales_type: sType,
+      area_category: user.area_category ?? "dalam_kota",
+      schedule_mode: user.schedule_mode ?? (sType === "to" ? "previous_workday" : "normal"),
     });
     setShowPw(false);
     setOpen(true);
@@ -208,11 +257,13 @@ export default function Users() {
     }
     setSaving(true);
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | null> = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
         schedule_mode: formData.role === "sales" ? formData.schedule_mode : "normal",
+        sales_type: formData.role === "sales" ? formData.sales_type : null,
+        area_category: formData.role === "sales" ? formData.area_category : null,
       };
       if (formData.password) payload.password = formData.password;
 
@@ -296,37 +347,36 @@ export default function Users() {
     }
   };
 
-  // Outlet yang belum di-assign ke user ini, ditambah filter pencarian dan hari kunjungan
-  const availableOutlets = allOutlets.filter(
-    (o) => {
-      // 1. Cek apakah belum di assign
-      if (userOutlets.some((uo) => uo.id === o.id)) return false;
-      // 2. Cek pencarian nama/kode
-      const searchMatch = !outletSearch.trim() || 
-        o.name.toLowerCase().includes(outletSearch.toLowerCase()) || 
-        o.code.toLowerCase().includes(outletSearch.toLowerCase());
-      // 3. Cek filter hari
-      const dayMatch = outletDayFilter === "Semua" || o.visit_day === outletDayFilter;
-      
-      return searchMatch && dayMatch;
-    }
-  );
+  const availableOutlets = allOutlets.filter((o) => {
+    if (userOutlets.some((uo) => uo.id === o.id)) return false;
+    const searchMatch =
+      !outletSearch.trim() ||
+      o.name.toLowerCase().includes(outletSearch.toLowerCase()) ||
+      o.code.toLowerCase().includes(outletSearch.toLowerCase());
+    const dayMatch = outletDayFilter === "Semua" || o.visit_day === outletDayFilter;
+    return searchMatch && dayMatch;
+  });
 
   const deleteTarget = users.find((u) => u.id === deleteId);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600">
             <UsersIcon className="w-6 h-6" />
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-gray-900">Manajemen Pengguna</h1>
-            <span className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold shadow-sm">
-              {users.length} user
-            </span>
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">Manajemen Pengguna</h1>
+              <span className="px-2.5 py-1 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold shadow-sm">
+                {users.length} total akun
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Dipisahkan berdasarkan kategori: Sales Sebelum Pengantaran (TO), Akun Pengantaran (Dalam/Luar Kota), dan Admin Web
+            </p>
           </div>
         </div>
         <button
@@ -337,130 +387,245 @@ export default function Users() {
         </button>
       </div>
 
-      <div className="flex items-start gap-2 p-3 sm:p-4 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100">
+      {/* Info Banner */}
+      <div className="flex items-start gap-2.5 p-3.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100">
         <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
-        <p className="text-sm">
-          Pengguna yang ditambahkan di sini dapat login ke <strong>Aplikasi Android</strong> sebagai akun sales.
-          Klik tombol ikon <Store className="w-4 h-4 inline mx-1" /> untuk mengatur outlet milik user.
-        </p>
-      </div>
-
-      {/* Search */}
-      <div className="relative w-full sm:w-80">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+        <div className="text-xs sm:text-sm space-y-1">
+          <p>
+            <strong>Sales Sebelum Pengantaran (TO):</strong> Melihat seluruh outlet yang ditugaskan (H-1), membuat pemesanan barang, dan mencetak struk pemesanan.
+          </p>
+          <p>
+            <strong>Akun Pengantaran (Hari H):</strong> Dikelompokkan per <strong>Dalam Kota</strong> dan <strong>Luar Kota</strong>. Pada Map aplikasi mobile, akun pengantaran hanya menampilkan titik outlet yang memiliki pemesanan aktif sesuai kategori kotanya.
+          </p>
         </div>
-        <input
-          type="text"
-          placeholder="Cari nama atau email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm text-sm outline-none"
-        />
       </div>
 
-      {/* Tabel */}
+      {/* Category Tabs Card */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-emerald-600 text-white text-sm">
-                <th className="px-4 py-3.5 font-semibold w-12 text-center">No</th>
-                <th className="px-4 py-3.5 font-semibold">Nama</th>
-                <th className="px-4 py-3.5 font-semibold">Email</th>
-                <th className="px-4 py-3.5 font-semibold">Role</th>
-                <th className="px-4 py-3.5 font-semibold">Jadwal</th>
-                <th className="px-4 py-3.5 font-semibold text-center w-32">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {loading ? (
-                <TableRowsSkeleton rows={itemsPerPage} cols={6} />
-              ) : paginatedUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                    Tidak ada data pengguna.
-                  </td>
-                </tr>
-              ) : (
-                paginatedUsers.map((row, idx) => {
-                  const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
-                  return (
-                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{row.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                        row.role === 'admin' 
-                          ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                          : 'bg-blue-50 text-blue-700 border-blue-200'
-                      }`}>
-                        {row.role ?? "sales"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.role === "sales" ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                          row.schedule_mode === "previous_workday"
-                            ? "bg-amber-50 text-amber-800 border-amber-200"
-                            : "bg-gray-50 text-gray-700 border-gray-200"
-                        }`}>
-                          {row.schedule_mode === "previous_workday" ? "Mundur hari kerja" : "Normal"}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openOutletDialog(row)}
-                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="Kelola Outlet"
-                        >
-                          <Store className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDuplicateTarget(row)}
-                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Duplikat User & Outlet"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEdit(row)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(row.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        {/* Main Category Tabs */}
+        <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/60">
+          <button
+            onClick={() => setActiveTab("to")}
+            className={`flex items-center gap-2 px-5 py-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "to"
+                ? "border-amber-600 text-amber-800 bg-white"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/50"
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            Sales Sebelum Pengantaran (TO)
+            <span className={`px-2 py-0.5 rounded-full text-[11px] ${activeTab === "to" ? "bg-amber-100 text-amber-800" : "bg-gray-200 text-gray-600"}`}>
+              {toCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("delivery")}
+            className={`flex items-center gap-2 px-5 py-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "delivery"
+                ? "border-blue-600 text-blue-700 bg-white"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/50"
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            Akun Pengantaran (Hari H)
+            <span className={`px-2 py-0.5 rounded-full text-[11px] ${activeTab === "delivery" ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-600"}`}>
+              {deliveryCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("admin")}
+            className={`flex items-center gap-2 px-5 py-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "admin"
+                ? "border-rose-600 text-rose-700 bg-white"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/50"
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Admin Web
+            <span className={`px-2 py-0.5 rounded-full text-[11px] ${activeTab === "admin" ? "bg-rose-100 text-rose-700" : "bg-gray-200 text-gray-600"}`}>
+              {adminCount}
+            </span>
+          </button>
         </div>
-        
-        {!loading && filtered.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            totalItems={filtered.length}
-            itemsPerPage={itemsPerPage}
-          />
-        )}
+
+        <div className="p-5 space-y-4">
+          {/* Filter Bar: Search + Sub-filter Area (Dalam Kota / Luar Kota) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Cari nama atau email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-sm outline-none"
+              />
+            </div>
+
+            {activeTab !== "admin" && (
+              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl self-start sm:self-auto">
+                <button
+                  onClick={() => setAreaFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    areaFilter === "all" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Semua Area
+                </button>
+                <button
+                  onClick={() => setAreaFilter("dalam_kota")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    areaFilter === "dalam_kota" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <MapPin className="w-3 h-3" /> Dalam Kota
+                </button>
+                <button
+                  onClick={() => setAreaFilter("luar_kota")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    areaFilter === "luar_kota" ? "bg-indigo-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <MapPin className="w-3 h-3" /> Luar Kota
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tabel */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-emerald-600 text-white text-sm">
+                    <th className="px-4 py-3 font-semibold w-12 text-center">No</th>
+                    <th className="px-4 py-3 font-semibold">Nama</th>
+                    <th className="px-4 py-3 font-semibold">Email</th>
+                    <th className="px-4 py-3 font-semibold">Tipe Akun</th>
+                    {activeTab !== "admin" && (
+                      <>
+                        <th className="px-4 py-3 font-semibold">Kategori Area</th>
+                        <th className="px-4 py-3 font-semibold">Mode Jadwal</th>
+                      </>
+                    )}
+                    <th className="px-4 py-3 font-semibold text-center w-32">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-sm">
+                  {loading ? (
+                    <TableRowsSkeleton rows={itemsPerPage} cols={activeTab === "admin" ? 5 : 7} />
+                  ) : paginatedUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={activeTab === "admin" ? 5 : 7} className="px-4 py-8 text-center text-gray-500">
+                        Tidak ada data pengguna pada kategori ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedUsers.map((row, idx) => {
+                      const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
+                      const group = getUserTabGroup(row);
+                      const area = row.area_category ?? "dalam_kota";
+                      return (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">{row.name}</td>
+                          <td className="px-4 py-3 text-gray-500">{row.email}</td>
+                          <td className="px-4 py-3">
+                            {group === "admin" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <ShieldCheck className="w-3 h-3" /> Admin Web
+                              </span>
+                            ) : group === "delivery" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                <Truck className="w-3 h-3" /> Pengantaran (Hari H)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <ClipboardList className="w-3 h-3" /> Sales TO (H-1)
+                              </span>
+                            )}
+                          </td>
+                          {activeTab !== "admin" && (
+                            <>
+                              <td className="px-4 py-3">
+                                {area === "luar_kota" ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    <MapPin className="w-3 h-3" /> Luar Kota
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <MapPin className="w-3 h-3" /> Dalam Kota
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                  row.schedule_mode === "previous_workday"
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : "bg-gray-50 text-gray-700 border-gray-200"
+                                }`}>
+                                  {row.schedule_mode === "previous_workday" ? "Mundur H-1 (TO)" : "Hari H (Normal)"}
+                                </span>
+                              </td>
+                            </>
+                          )}
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {row.role !== "admin" && (
+                                <button
+                                  onClick={() => openOutletDialog(row)}
+                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                  title="Kelola Outlet"
+                                >
+                                  <Store className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => setDuplicateTarget(row)}
+                                className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Duplikat User & Outlet"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenEdit(row)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteId(row.id)}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Hapus"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            {!loading && filtered.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={filtered.length}
+                itemsPerPage={itemsPerPage}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Dialog: Assign Outlet ──────────────────────────────────────── */}
@@ -475,6 +640,12 @@ export default function Users() {
         }
       >
         <div className="space-y-4">
+          {outletDialogUser?.sales_type === "delivery" && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+              <strong>Catatan Akun Pengantaran:</strong> Di aplikasi Map Mobile, akun pengantaran ini otomatis menampilkan outlet yang memiliki <strong>Pemesanan (Order) Aktif</strong> pada area <strong>{outletDialogUser.area_category === "luar_kota" ? "Luar Kota" : "Dalam Kota"}</strong>.
+            </div>
+          )}
+
           <div>
             <h4 className="text-sm font-bold text-gray-900 mb-2">Assign Outlet Baru</h4>
             
@@ -555,7 +726,7 @@ export default function Users() {
                 Belum ada outlet yang di-assign ke user ini.
               </p>
             ) : (
-              <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100 bg-gray-50/30">
+              <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100 bg-gray-50/30 max-h-48 overflow-y-auto">
                 {userOutlets.map((outlet) => (
                   <li key={outlet.id} className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors">
                     <div>
@@ -598,7 +769,7 @@ export default function Users() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
             />
           </div>
           <div>
@@ -607,7 +778,7 @@ export default function Users() {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
             />
           </div>
           <div>
@@ -619,7 +790,7 @@ export default function Users() {
                 type={showPw ? "text" : "password"}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm"
               />
               <button
                 type="button"
@@ -631,53 +802,125 @@ export default function Users() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role Aplikasi</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white text-sm"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r === "admin" ? "Admin (Web)" : "Sales (Android)"}
+                  {r === "admin" ? "Admin (Dashboard Web)" : "Sales / Pengantaran (Aplikasi Android)"}
                 </option>
               ))}
             </select>
           </div>
+
           {formData.role === "sales" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Pengaturan Jadwal Outlet</label>
-              <div className="grid grid-cols-1 gap-2" role="radiogroup" aria-label="Pengaturan jadwal outlet">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={formData.schedule_mode === "normal"}
-                  onClick={() => setFormData({ ...formData, schedule_mode: "normal" })}
-                  className={`border rounded-lg px-3 py-2.5 text-left transition-colors ${
-                    formData.schedule_mode === "normal"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-900"
-                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">Jadwal normal</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">Outlet mengikuti hari kunjungan yang terdaftar.</span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={formData.schedule_mode === "previous_workday"}
-                  onClick={() => setFormData({ ...formData, schedule_mode: "previous_workday" })}
-                  className={`border rounded-lg px-3 py-2.5 text-left transition-colors ${
-                    formData.schedule_mode === "previous_workday"
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-900"
-                      : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">Mundur ke hari kerja sebelumnya</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">Jadwal Senin tampil Sabtu, jadwal Selasa tampil Senin. Minggu tidak ada jadwal.</span>
-                </button>
+            <>
+              {/* Tipe Akun Lapangan */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kategori Akun Lapangan</label>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        sales_type: "to",
+                        schedule_mode: "previous_workday",
+                      })
+                    }
+                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      formData.sales_type === "to"
+                        ? "border-amber-600 bg-amber-50 text-amber-900"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-bold">
+                      <ClipboardList className="w-4 h-4 text-amber-600" />
+                      Sales Sebelum Pengantaran (TO / H-1)
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Melihat semua outlet, membuat pemesanan (order), dan mencetak struk pemesanan.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        sales_type: "delivery",
+                        schedule_mode: "normal",
+                      })
+                    }
+                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      formData.sales_type === "delivery"
+                        ? "border-blue-600 bg-blue-50 text-blue-900"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-bold">
+                      <Truck className="w-4 h-4 text-blue-600" />
+                      Akun Pengantaran (Hari Pengantaran / Hari H)
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Hanya melihat titik Map outlet yang memesan barang sesuai area kotanya dan melakukan dropping.
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
+
+              {/* Kategori Area Kota */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kategori Wilayah (Area)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, area_category: "dalam_kota" })}
+                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      formData.area_category === "dalam_kota"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-bold">
+                      <MapPin className="w-4 h-4 text-emerald-600" /> Dalam Kota
+                    </span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">Area rute dalam kota</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, area_category: "luar_kota" })}
+                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      formData.area_category === "luar_kota"
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-900"
+                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-bold">
+                      <MapPin className="w-4 h-4 text-indigo-600" /> Luar Kota
+                    </span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">Area rute luar kota</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Pengaturan Jadwal Outlet */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Mode Jadwal Kunjungan</label>
+                <select
+                  value={formData.schedule_mode}
+                  onChange={(e) => setFormData({ ...formData, schedule_mode: e.target.value as "normal" | "previous_workday" })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white text-sm"
+                >
+                  <option value="previous_workday">Mundur ke hari kerja sebelumnya (H-1 / Sales TO)</option>
+                  <option value="normal">Jadwal hari normal (Hari H / Pengantaran)</option>
+                </select>
+              </div>
+            </>
           )}
         </div>
       </Modal>

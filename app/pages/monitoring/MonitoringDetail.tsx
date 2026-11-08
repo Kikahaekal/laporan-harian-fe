@@ -348,7 +348,10 @@ export default function MonitoringDetail() {
                       {item.item ? (
                         <div className="flex flex-col">
                           <span className="font-bold text-gray-900">{item.item.code}</span>
-                          <span className="text-xs text-gray-500 font-medium">{item.item.name}</span>
+                          <span className="text-xs text-gray-500 font-medium">
+                            {item.item.name}
+                            {item.item.variant ? ` (${item.item.variant})` : ""}
+                          </span>
                         </div>
                       ) : (
                         <span className="font-medium text-gray-900">ID #{item.item_id}</span>

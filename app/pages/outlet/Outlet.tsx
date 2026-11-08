@@ -42,7 +42,7 @@ const EMPTY_FORM = {
 };
 
 // ─── Component: Dialog Modal ─────────────────────────────────────────────────
-function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; actions?: React.ReactNode }) {
+function Modal({ open, onClose, title, children, actions }: { open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }) {
   if (!open) return null;
   return (
     <>
