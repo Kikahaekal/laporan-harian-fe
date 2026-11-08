@@ -111,21 +111,28 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
       // Initialize map keys for existing outlets
       outletList.forEach((o) => { map[o.id] = []; });
 
+      const commonParams: Record<string, any> = {
+        from: fromDate,
+        to: toDate,
+        per_page: 5000,
+      };
+      if (selectedUserId !== "ALL") {
+        commonParams.user_id = selectedUserId;
+      }
+
       const [droppingRes, invoicedRes] = await Promise.all([
-        apiBe.get(`/api/web/sales`, { params: { status: "DROPPING", per_page: 5000 } }),
-        apiBe.get(`/api/web/sales`, { params: { status: "INVOICED", from: fromDate, to: toDate, per_page: 5000 } }),
+        apiBe.get(`/api/web/sales`, { params: { ...commonParams, status: "DROPPING" } }),
+        apiBe.get(`/api/web/sales`, { params: { ...commonParams, status: "INVOICED" } }),
       ]);
 
       const droppingSales: Sale[] = droppingRes.data?.data ?? [];
       const invoicedSales: Sale[] = invoicedRes.data?.data ?? [];
       const allFetchedSales = [...droppingSales, ...invoicedSales];
 
-      // Group sales by outlet_id
+      // Group sales HANYA untuk outlet yang ada pada hari kunjungan & filter saat ini
       allFetchedSales.forEach((sale) => {
         if (map[sale.outlet_id] !== undefined) {
           map[sale.outlet_id].push(sale);
-        } else {
-          map[sale.outlet_id] = [sale];
         }
       });
 
@@ -135,7 +142,7 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, selectedUserId]);
 
   useEffect(() => { fetchOutlets(); }, [fetchOutlets]);
   useEffect(() => { if (outlets.length > 0) fetchSales(outlets); }, [outlets, fetchSales]);
@@ -166,39 +173,40 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
     return next;
   }, [salesMap, statusTab]);
   
-  const filteredOutlets = useMemo(() => {
-    let result = outlets;
-    
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(o => {
-        if (o.name.toLowerCase().includes(q)) return true;
-        const salesForOutlet = filteredSalesMap[o.id] || [];
-        return salesForOutlet.some(s => s.nota_number?.toLowerCase().includes(q));
-      });
-    }
-    
-    if (statusTab !== "ALL") {
-      result = result.filter(o => {
-        const salesForOutlet = filteredSalesMap[o.id] || [];
-        return salesForOutlet.length > 0;
-      });
-    }
-    
-    return result;
-  }, [outlets, filteredSalesMap, searchQuery, statusTab]);
+  // Outlet yang cocok dengan pencarian (sebelum difilter tab status DROPPING/INVOICED)
+  const searchMatchedOutlets = useMemo(() => {
+    if (!searchQuery.trim()) return outlets;
+    const q = searchQuery.toLowerCase();
+    return outlets.filter((o) => {
+      if (o.name.toLowerCase().includes(q)) return true;
+      if (o.code?.toLowerCase().includes(q)) return true;
+      const salesForOutlet = salesMap[o.id] || [];
+      return salesForOutlet.some((s) => s.nota_number?.toLowerCase().includes(q));
+    });
+  }, [outlets, salesMap, searchQuery]);
 
-  const allSales = useMemo(() => {
-    const validOutletIds = new Set(filteredOutlets.map(o => o.id));
-    return Object.entries(filteredSalesMap)
+  const filteredOutlets = useMemo(() => {
+    if (statusTab === "ALL") return searchMatchedOutlets;
+    return searchMatchedOutlets.filter((o) => {
+      const salesForOutlet = filteredSalesMap[o.id] || [];
+      return salesForOutlet.length > 0;
+    });
+  }, [searchMatchedOutlets, filteredSalesMap, statusTab]);
+
+  // Semua nota untuk outlet yang cocok dengan pencarian & hari kunjungan aktif
+  const allSalesInView = useMemo(() => {
+    const validOutletIds = new Set(searchMatchedOutlets.map((o) => o.id));
+    return Object.entries(salesMap)
       .filter(([outletId]) => validOutletIds.has(Number(outletId)))
       .map(([_, sales]) => sales)
       .flat();
-  }, [filteredSalesMap, filteredOutlets]);
-  
-  const countDropping = allSales.filter((s) => s.status === "DROPPING").length;
-  const countInvoiced = allSales.filter((s) => s.status === "INVOICED").length;
-  const countBelumLunas = allSales.filter((s) => s.status === "INVOICED" && !(s.payment_status === "LUNAS" || Number(s.deposit) >= Number(s.grand_total))).length;
+  }, [salesMap, searchMatchedOutlets]);
+
+  const countDropping = allSalesInView.filter((s) => s.status === "DROPPING").length;
+  const countInvoiced = allSalesInView.filter((s) => s.status === "INVOICED").length;
+  const countBelumLunas = allSalesInView.filter(
+    (s) => s.status === "INVOICED" && !(s.payment_status === "LUNAS" || Number(s.deposit) >= Number(s.grand_total))
+  ).length;
 
   const totalPages = Math.ceil(filteredOutlets.length / itemsPerPage);
   const paginatedOutlets = filteredOutlets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -351,13 +359,16 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
         
         <div className="flex px-2 pt-2 gap-2 overflow-x-auto overflow-y-hidden scrollbar-hide border-b border-gray-200 bg-gray-50/50">
           {[
-            { value: "ALL", label: `Semua (${Object.values(salesMap).flat().length})` },
-            { value: "DROPPING", label: `Dropping (${Object.values(salesMap).flat().filter((s) => s.status === "DROPPING").length})` },
-            { value: "INVOICED", label: `Invoiced (${Object.values(salesMap).flat().filter((s) => s.status === "INVOICED").length})` },
+            { value: "ALL", label: `Semua (${allSalesInView.length})` },
+            { value: "DROPPING", label: `Dropping (${countDropping})` },
+            { value: "INVOICED", label: `Invoiced (${countInvoiced})` },
           ].map((tab) => (
             <button
               key={tab.value}
-              onClick={() => setStatusTab(tab.value as any)}
+              onClick={() => {
+                setStatusTab(tab.value as any);
+                setCurrentPage(1);
+              }}
               className={`px-4 py-2 text-xs font-bold rounded-t-lg transition-colors border border-b-0 ${
                 statusTab === tab.value 
                   ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10 translate-y-[1px]' 
@@ -405,12 +416,12 @@ export function WeeklyMonitorSection({ hideHeader = false }: { hideHeader?: bool
                 selectedYear={year}
               />
             ))}
-            {!loadingOutlets && outlets.length > 0 && (
+            {!loadingOutlets && filteredOutlets.length > 0 && (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}
-                totalItems={outlets.length}
+                totalItems={filteredOutlets.length}
                 itemsPerPage={itemsPerPage}
               />
             )}

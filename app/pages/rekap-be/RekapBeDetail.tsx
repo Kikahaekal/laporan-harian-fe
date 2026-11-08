@@ -32,7 +32,7 @@ interface SaleItemDetail {
   qty_returned: number;
   price_at_moment: number | string;
   subtotal: number | string;
-  item?: { id: number; code: string; name: string };
+  item?: { id: number; code: string; name: string; variant?: string | null };
 }
 
 interface SaleWithItems extends Sale {
@@ -230,7 +230,10 @@ export default function RekapBeDetail() {
     filteredNotas.forEach((n) => {
       (n.saleItems ?? []).forEach((si) => {
         const key = si.item_id;
-        const prev = map.get(key) ?? { code: si.item?.code ?? "", name: si.item?.name ?? `#${key}`, qtyOrder: 0, qtySold: 0, qtyRetur: 0, qtySisa: 0, subtotal: 0 };
+        const itemLabel = si.item
+          ? `${si.item.name}${si.item.variant ? ` (${si.item.variant})` : ""}`
+          : `#${key}`;
+        const prev = map.get(key) ?? { code: si.item?.code ?? "", name: itemLabel, qtyOrder: 0, qtySold: 0, qtyRetur: 0, qtySisa: 0, subtotal: 0 };
         map.set(key, {
           ...prev,
           qtyOrder: prev.qtyOrder + (si.qty_order || 0),
