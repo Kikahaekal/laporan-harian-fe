@@ -18,7 +18,7 @@ import {
   ClipboardList,
   Truck,
   ShieldCheck,
-  MapPin
+  Link2
 } from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import { TableRowsSkeleton } from "../../components/TableSkeleton";
@@ -31,7 +31,12 @@ interface UserData {
   role?: string;
   schedule_mode?: "normal" | "previous_workday";
   sales_type?: "to" | "delivery" | null;
-  area_category?: "dalam_kota" | "luar_kota" | null;
+  connected_sales_id?: number | null;
+  connected_sales?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
 }
 
 interface OutletSimple {
@@ -50,8 +55,8 @@ const EMPTY_FORM = {
   password: "",
   role: "sales",
   sales_type: "to" as "to" | "delivery",
-  area_category: "dalam_kota" as "dalam_kota" | "luar_kota",
   schedule_mode: "previous_workday" as "normal" | "previous_workday",
+  connected_sales_id: null as number | null,
 };
 
 // ─── Component: Dialog Modal ─────────────────────────────────────────────────
@@ -119,7 +124,6 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"to" | "delivery" | "admin">("to");
-  const [areaFilter, setAreaFilter] = useState<"all" | "dalam_kota" | "luar_kota">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -186,7 +190,8 @@ export default function Users() {
 
   useEffect(() => { fetchUsers(); fetchAllOutlets(); }, []);
 
-  const toCount = users.filter((u) => getUserTabGroup(u) === "to").length;
+  const salesToUsers = users.filter((u) => getUserTabGroup(u) === "to");
+  const toCount = salesToUsers.length;
   const deliveryCount = users.filter((u) => getUserTabGroup(u) === "delivery").length;
   const adminCount = users.filter((u) => getUserTabGroup(u) === "admin").length;
 
@@ -195,10 +200,7 @@ export default function Users() {
     const matchSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
-    const effectiveArea = u.area_category ?? "dalam_kota";
-    const matchArea =
-      activeTab === "admin" || areaFilter === "all" || effectiveArea === areaFilter;
-    return matchTab && matchSearch && matchArea;
+    return matchTab && matchSearch;
   });
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -206,7 +208,7 @@ export default function Users() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, activeTab, areaFilter]);
+  }, [search, activeTab]);
 
   // ── User CRUD ──────────────────────────────────────────────────────────────
   const handleOpenAdd = () => {
@@ -215,15 +217,15 @@ export default function Users() {
     const defaultRole = activeTab === "admin" ? "admin" : "sales";
     const defaultSalesType = activeTab === "delivery" ? "delivery" : "to";
     const defaultSchedule = defaultSalesType === "to" ? "previous_workday" : "normal";
-    const defaultArea = areaFilter !== "all" ? areaFilter : "dalam_kota";
+    const firstSalesTo = salesToUsers[0];
     setFormData({
       name: "",
       email: "",
       password: "",
       role: defaultRole,
       sales_type: defaultSalesType,
-      area_category: defaultArea,
       schedule_mode: defaultSchedule,
+      connected_sales_id: defaultSalesType === "delivery" ? (firstSalesTo?.id ?? null) : null,
     });
     setShowPw(false);
     setOpen(true);
@@ -239,8 +241,8 @@ export default function Users() {
       password: "",
       role: user.role ?? "sales",
       sales_type: sType,
-      area_category: user.area_category ?? "dalam_kota",
       schedule_mode: user.schedule_mode ?? (sType === "to" ? "previous_workday" : "normal"),
+      connected_sales_id: sType === "delivery" ? (user.connected_sales_id ?? null) : null,
     });
     setShowPw(false);
     setOpen(true);
@@ -257,13 +259,16 @@ export default function Users() {
     }
     setSaving(true);
     try {
-      const payload: Record<string, string | null> = {
+      const payload: Record<string, string | number | null> = {
         name: formData.name,
         email: formData.email,
         role: formData.role,
         schedule_mode: formData.role === "sales" ? formData.schedule_mode : "normal",
         sales_type: formData.role === "sales" ? formData.sales_type : null,
-        area_category: formData.role === "sales" ? formData.area_category : null,
+        connected_sales_id:
+          formData.role === "sales" && formData.sales_type === "delivery"
+            ? formData.connected_sales_id
+            : null,
       };
       if (formData.password) payload.password = formData.password;
 
@@ -375,7 +380,7 @@ export default function Users() {
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Dipisahkan berdasarkan kategori: Sales Sebelum Pengantaran (TO), Akun Pengantaran (Dalam/Luar Kota), dan Admin Web
+              Dipisahkan berdasarkan kategori: Sales Sebelum Pengantaran (TO), Akun Pengantaran, dan Admin Web
             </p>
           </div>
         </div>
@@ -392,10 +397,10 @@ export default function Users() {
         <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
         <div className="text-xs sm:text-sm space-y-1">
           <p>
-            <strong>Sales Sebelum Pengantaran (TO):</strong> Melihat seluruh outlet yang ditugaskan (H-1), membuat pemesanan barang, dan mencetak struk pemesanan.
+            <strong>Sales Sebelum Pengantaran (TO):</strong> Memiliki daftar seluruh outlet (misal 60 outlet), melakukan kunjungan H-1, dan membuat pemesanan (Order) untuk outlet yang memesan barang (misal 30 outlet).
           </p>
           <p>
-            <strong>Akun Pengantaran (Hari H):</strong> Dikelompokkan per <strong>Dalam Kota</strong> dan <strong>Luar Kota</strong>. Pada Map aplikasi mobile, akun pengantaran hanya menampilkan titik outlet yang memiliki pemesanan aktif sesuai kategori kotanya.
+            <strong>Akun Pengantaran (Hari H):</strong> Terhubung langsung ke <strong>Akun Sales TO</strong> terkait. Di Map aplikasi mobile, akun pengantaran <strong>hanya menampilkan titik outlet yang sudah dipesan (order) oleh akun Sales TO yang terhubung</strong>, sehingga map tidak ramai.
           </p>
         </div>
       </div>
@@ -451,7 +456,7 @@ export default function Users() {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Filter Bar: Search + Sub-filter Area (Dalam Kota / Luar Kota) */}
+          {/* Filter Bar: Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="relative w-full sm:w-80">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -465,35 +470,6 @@ export default function Users() {
                 className="block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-sm outline-none"
               />
             </div>
-
-            {activeTab !== "admin" && (
-              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl self-start sm:self-auto">
-                <button
-                  onClick={() => setAreaFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "all" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Semua Area
-                </button>
-                <button
-                  onClick={() => setAreaFilter("dalam_kota")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "dalam_kota" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <MapPin className="w-3 h-3" /> Dalam Kota
-                </button>
-                <button
-                  onClick={() => setAreaFilter("luar_kota")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "luar_kota" ? "bg-indigo-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <MapPin className="w-3 h-3" /> Luar Kota
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Tabel */}
@@ -508,7 +484,9 @@ export default function Users() {
                     <th className="px-4 py-3 font-semibold">Tipe Akun</th>
                     {activeTab !== "admin" && (
                       <>
-                        <th className="px-4 py-3 font-semibold">Kategori Area</th>
+                        <th className="px-4 py-3 font-semibold">
+                          {activeTab === "delivery" ? "Terhubung ke Sales TO" : "Akun Pengantaran Terhubung"}
+                        </th>
                         <th className="px-4 py-3 font-semibold">Mode Jadwal</th>
                       </>
                     )}
@@ -528,7 +506,13 @@ export default function Users() {
                     paginatedUsers.map((row, idx) => {
                       const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
                       const group = getUserTabGroup(row);
-                      const area = row.area_category ?? "dalam_kota";
+                      const connectedSalesUser =
+                        row.connected_sales ??
+                        (row.connected_sales_id ? users.find((u) => u.id === row.connected_sales_id) : null);
+                      const connectedDeliveries =
+                        group === "to"
+                          ? users.filter((u) => u.sales_type === "delivery" && u.connected_sales_id === row.id)
+                          : [];
                       return (
                         <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3 text-center text-gray-500">{actualIdx}</td>
@@ -552,14 +536,31 @@ export default function Users() {
                           {activeTab !== "admin" && (
                             <>
                               <td className="px-4 py-3">
-                                {area === "luar_kota" ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                    <MapPin className="w-3 h-3" /> Luar Kota
-                                  </span>
+                                {group === "delivery" ? (
+                                  connectedSalesUser ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                                      <Link2 className="w-3.5 h-3.5 text-amber-600" />
+                                      {connectedSalesUser.name}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                                      Belum dipilih
+                                    </span>
+                                  )
+                                ) : connectedDeliveries.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {connectedDeliveries.map((d) => (
+                                      <span
+                                        key={d.id}
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+                                      >
+                                        <Truck className="w-3 h-3 text-blue-600" />
+                                        {d.name}
+                                      </span>
+                                    ))}
+                                  </div>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <MapPin className="w-3 h-3" /> Dalam Kota
-                                  </span>
+                                  <span className="text-xs text-gray-400">Belum ada akun pengantar</span>
                                 )}
                               </td>
                               <td className="px-4 py-3">
@@ -575,11 +576,11 @@ export default function Users() {
                           )}
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
-                              {row.role !== "admin" && (
+                              {group === "to" && (
                                 <button
                                   onClick={() => openOutletDialog(row)}
                                   className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                  title="Kelola Outlet"
+                                  title="Kelola Outlet Sales TO"
                                 >
                                   <Store className="w-4 h-4" />
                                 </button>
@@ -642,7 +643,7 @@ export default function Users() {
         <div className="space-y-4">
           {outletDialogUser?.sales_type === "delivery" && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
-              <strong>Catatan Akun Pengantaran:</strong> Di aplikasi Map Mobile, akun pengantaran ini otomatis menampilkan outlet yang memiliki <strong>Pemesanan (Order) Aktif</strong> pada area <strong>{outletDialogUser.area_category === "luar_kota" ? "Luar Kota" : "Dalam Kota"}</strong>.
+              <strong>Catatan Akun Pengantaran:</strong> Di aplikasi Map Mobile, akun pengantaran ini otomatis menampilkan outlet yang memiliki <strong>Pemesanan (Order) Aktif</strong> dari akun Sales TO yang terhubung.
             </div>
           )}
 
@@ -829,6 +830,7 @@ export default function Users() {
                         ...formData,
                         sales_type: "to",
                         schedule_mode: "previous_workday",
+                        connected_sales_id: null,
                       })
                     }
                     className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
@@ -848,13 +850,15 @@ export default function Users() {
 
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const firstSalesTo = salesToUsers[0];
                       setFormData({
                         ...formData,
                         sales_type: "delivery",
                         schedule_mode: "normal",
-                      })
-                    }
+                        connected_sales_id: formData.connected_sales_id ?? firstSalesTo?.id ?? null,
+                      });
+                    }}
                     className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
                       formData.sales_type === "delivery"
                         ? "border-blue-600 bg-blue-50 text-blue-900"
@@ -866,47 +870,41 @@ export default function Users() {
                       Akun Pengantaran (Hari Pengantaran / Hari H)
                     </span>
                     <span className="block text-xs text-gray-500 mt-0.5">
-                      Hanya melihat titik Map outlet yang memesan barang sesuai area kotanya dan melakukan dropping.
+                      Terhubung ke akun Sales TO dan hanya menampilkan titik Map outlet yang sudah memesan barang.
                     </span>
                   </button>
                 </div>
               </div>
 
-              {/* Kategori Area Kota */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Kategori Wilayah (Area)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, area_category: "dalam_kota" })}
-                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
-                      formData.area_category === "dalam_kota"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-900"
-                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                    }`}
+              {/* Koneksi ke Akun Sales TO (Khusus Akun Pengantaran) */}
+              {formData.sales_type === "delivery" && (
+                <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                  <label className="block text-sm font-bold text-blue-900 flex items-center gap-1.5">
+                    <Link2 className="w-4 h-4 text-blue-600" />
+                    Terhubung ke Akun Sales (TO)
+                  </label>
+                  <select
+                    value={formData.connected_sales_id ?? ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        connected_sales_id: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-blue-300 rounded-xl focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm"
                   >
-                    <span className="flex items-center gap-1.5 text-sm font-bold">
-                      <MapPin className="w-4 h-4 text-emerald-600" /> Dalam Kota
-                    </span>
-                    <span className="block text-[11px] text-gray-500 mt-0.5">Area rute dalam kota</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, area_category: "luar_kota" })}
-                    className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
-                      formData.area_category === "luar_kota"
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-900"
-                        : "border-gray-200 hover:bg-gray-50 text-gray-700"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5 text-sm font-bold">
-                      <MapPin className="w-4 h-4 text-indigo-600" /> Luar Kota
-                    </span>
-                    <span className="block text-[11px] text-gray-500 mt-0.5">Area rute luar kota</span>
-                  </button>
+                    <option value="">-- Pilih Akun Sales (TO) --</option>
+                    {salesToUsers.map((salesUser) => (
+                      <option key={salesUser.id} value={salesUser.id}>
+                        {salesUser.name} ({salesUser.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Outlet yang muncul di Map akun pengantaran ini hanya outlet yang dipesan (order) oleh akun Sales TO yang dipilih di atas.
+                  </p>
                 </div>
-              </div>
+              )}
 
               {/* Pengaturan Jadwal Outlet */}
               <div>
