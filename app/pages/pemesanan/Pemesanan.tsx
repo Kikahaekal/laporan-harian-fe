@@ -3,10 +3,6 @@ import {
   ClipboardList,
   Search,
   Printer,
-  MapPin,
-  Store,
-  User,
-  CalendarDays,
   CheckCircle,
   Clock,
   XCircle,
@@ -42,7 +38,6 @@ interface OrderData {
   order_number: string;
   outlet_id: number;
   user_id: number;
-  area_category: "dalam_kota" | "luar_kota";
   order_date: string;
   delivery_date: string;
   status: "PENDING" | "DELIVERED" | "CANCELLED";
@@ -60,7 +55,6 @@ interface OrderData {
     id: number;
     name: string;
     email?: string;
-    area_category?: string;
   };
   sale?: {
     id: number;
@@ -86,7 +80,7 @@ export default function Pemesanan() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [areaFilter, setAreaFilter] = useState<"all" | "dalam_kota" | "luar_kota">("all");
+  const [salesFilter, setSalesFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "DELIVERED" | "CANCELLED">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -122,9 +116,19 @@ export default function Pemesanan() {
     fetchOrders();
   }, []);
 
+  const salesUserOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    orders.forEach((o) => {
+      if (o.user?.id && o.user?.name) {
+        map.set(o.user.id, o.user.name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      const matchArea = areaFilter === "all" || o.area_category === areaFilter;
+      const matchSales = salesFilter === "ALL" || String(o.user_id) === salesFilter;
       const matchStatus = statusFilter === "ALL" || o.status === statusFilter;
       const q = search.trim().toLowerCase();
       const matchSearch =
@@ -133,9 +137,9 @@ export default function Pemesanan() {
         (o.outlet?.name ?? "").toLowerCase().includes(q) ||
         (o.outlet?.code ?? "").toLowerCase().includes(q) ||
         (o.user?.name ?? "").toLowerCase().includes(q);
-      return matchArea && matchStatus && matchSearch;
+      return matchSales && matchStatus && matchSearch;
     });
-  }, [orders, areaFilter, statusFilter, search]);
+  }, [orders, salesFilter, statusFilter, search]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = filteredOrders.slice(
@@ -145,14 +149,10 @@ export default function Pemesanan() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [areaFilter, statusFilter, search]);
+  }, [salesFilter, statusFilter, search]);
 
-  const pendingDalamKota = orders.filter(
-    (o) => o.status === "PENDING" && o.area_category === "dalam_kota"
-  ).length;
-  const pendingLuarKota = orders.filter(
-    (o) => o.status === "PENDING" && o.area_category === "luar_kota"
-  ).length;
+  const totalCount = orders.length;
+  const pendingCount = orders.filter((o) => o.status === "PENDING").length;
   const deliveredCount = orders.filter((o) => o.status === "DELIVERED").length;
 
   const handleDeleteOrder = async () => {
@@ -173,7 +173,6 @@ export default function Pemesanan() {
   const handlePrintReceipt = (order: OrderData) => {
     const items = order.order_items ?? [];
     const totalQty = items.reduce((s, i) => s + (i.qty_order || 0), 0);
-    const areaLabel = order.area_category === "luar_kota" ? "Luar Kota" : "Dalam Kota";
 
     const rowsHtml = items
       .map((oi) => {
@@ -226,8 +225,7 @@ export default function Pemesanan() {
             <tr><td>No. Order</td><td>: <strong>${order.order_number}</strong></td></tr>
             <tr><td>Tgl Pesan</td><td>: ${fmtDate(order.order_date)}</td></tr>
             <tr><td>Jadwal Antar</td><td>: ${fmtDate(order.delivery_date)}</td></tr>
-            <tr><td>Kategori Area</td><td>: <strong>${areaLabel}</strong></td></tr>
-            <tr><td>Sales TO</td><td>: ${order.user?.name ?? "-"}</td></tr>
+            <tr><td>Sales TO</td><td>: <strong>${order.user?.name ?? "-"}</strong></td></tr>
             <tr><td>Outlet</td><td>: <strong>${order.outlet?.name ?? "-"}</strong> (${order.outlet?.code ?? "-"})</td></tr>
           </table>
           <div class="divider"></div>
@@ -271,7 +269,7 @@ export default function Pemesanan() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pemesanan Sales (TO) & Struk</h1>
             <p className="text-xs text-gray-500">
-              Daftar pemesanan H-1 dari Sales TO untuk antrian Map Akun Pengantaran (Dalam Kota & Luar Kota)
+              Daftar pemesanan H-1 dari Sales TO untuk antrian Map Akun Pengantaran terkait
             </p>
           </div>
         </div>
@@ -281,23 +279,23 @@ export default function Pemesanan() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-emerald-700 uppercase">Antrian Dalam Kota</span>
-            <p className="text-2xl font-black text-gray-900 mt-1">{pendingDalamKota} Outlet</p>
-            <span className="text-xs text-gray-500">Menunggu pengantaran (PENDING)</span>
+            <span className="text-xs font-bold text-amber-700 uppercase">Total Pemesanan (TO)</span>
+            <p className="text-2xl font-black text-gray-900 mt-1">{totalCount} Pesanan</p>
+            <span className="text-xs text-gray-500">Seluruh riwayat pemesanan</span>
           </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <MapPin className="w-6 h-6" />
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+            <ClipboardList className="w-6 h-6" />
           </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-indigo-700 uppercase">Antrian Luar Kota</span>
-            <p className="text-2xl font-black text-gray-900 mt-1">{pendingLuarKota} Outlet</p>
-            <span className="text-xs text-gray-500">Menunggu pengantaran (PENDING)</span>
+            <span className="text-xs font-bold text-emerald-700 uppercase">Menunggu Pengantaran</span>
+            <p className="text-2xl font-black text-gray-900 mt-1">{pendingCount} Outlet</p>
+            <span className="text-xs text-gray-500">Tampil di Map Akun Pengantaran (PENDING)</span>
           </div>
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-            <MapPin className="w-6 h-6" />
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+            <Clock className="w-6 h-6" />
           </div>
         </div>
 
@@ -332,33 +330,19 @@ export default function Pemesanan() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Area Filter */}
-              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setAreaFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "all" ? "bg-white text-gray-900 shadow-sm" : "text-gray-600"
-                  }`}
-                >
-                  Semua Area
-                </button>
-                <button
-                  onClick={() => setAreaFilter("dalam_kota")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "dalam_kota" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-600"
-                  }`}
-                >
-                  Dalam Kota
-                </button>
-                <button
-                  onClick={() => setAreaFilter("luar_kota")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    areaFilter === "luar_kota" ? "bg-indigo-600 text-white shadow-sm" : "text-gray-600"
-                  }`}
-                >
-                  Luar Kota
-                </button>
-              </div>
+              {/* Filter Akun Sales TO */}
+              <select
+                value={salesFilter}
+                onChange={(e) => setSalesFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-xl text-xs font-bold bg-white outline-none"
+              >
+                <option value="ALL">Semua Akun Sales (TO)</option>
+                {salesUserOptions.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
 
               {/* Status Filter */}
               <select
@@ -382,7 +366,6 @@ export default function Pemesanan() {
                     <th className="px-4 py-3 font-semibold">No. Order</th>
                     <th className="px-4 py-3 font-semibold">Outlet</th>
                     <th className="px-4 py-3 font-semibold">Sales TO</th>
-                    <th className="px-4 py-3 font-semibold">Area Pengantaran</th>
                     <th className="px-4 py-3 font-semibold">Tgl Pesan → Antar</th>
                     <th className="px-4 py-3 font-semibold text-right">Total</th>
                     <th className="px-4 py-3 font-semibold text-center">Status</th>
@@ -391,10 +374,10 @@ export default function Pemesanan() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
                   {loading ? (
-                    <TableRowsSkeleton rows={itemsPerPage} cols={8} />
+                    <TableRowsSkeleton rows={itemsPerPage} cols={7} />
                   ) : paginatedOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         Belum ada data pemesanan (Order TO).
                       </td>
                     </tr>
@@ -410,17 +393,6 @@ export default function Pemesanan() {
                         </td>
                         <td className="px-4 py-3 text-gray-700 font-medium">
                           {row.user?.name ?? "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.area_category === "luar_kota" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              <MapPin className="w-3 h-3" /> Luar Kota
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <MapPin className="w-3 h-3" /> Dalam Kota
-                            </span>
-                          )}
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600">
                           <div>Pesan: <strong>{fmtDate(row.order_date)}</strong></div>
@@ -524,9 +496,9 @@ export default function Pemesanan() {
                   <div>
                     <span className="text-gray-400 block">Sales Pemesan (TO)</span>
                     <strong className="text-gray-900 text-sm">{selectedOrder.user?.name}</strong>
-                    <span className="block text-gray-500">
-                      Area: {selectedOrder.area_category === "luar_kota" ? "Luar Kota" : "Dalam Kota"}
-                    </span>
+                    {selectedOrder.user?.email && (
+                      <span className="block text-gray-500">{selectedOrder.user.email}</span>
+                    )}
                   </div>
                   <div>
                     <span className="text-gray-400 block">Tanggal Pesan</span>
