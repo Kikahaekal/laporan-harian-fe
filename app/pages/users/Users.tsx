@@ -18,7 +18,8 @@ import {
   ClipboardList,
   Truck,
   ShieldCheck,
-  Link2
+  Link2,
+  ArrowRightLeft
 } from "lucide-react";
 import apiBe from "../../lib/axiosBe";
 import { TableRowsSkeleton } from "../../components/TableSkeleton";
@@ -147,6 +148,19 @@ export default function Users() {
   const [outletLoading, setOutletLoading] = useState(false);
   const [outletSearch, setOutletSearch] = useState("");
   const [outletDayFilter, setOutletDayFilter] = useState("Semua");
+
+  // ── Transfer Outlet State ──────────────────────────────────────────────────
+  const [transferSourceUser, setTransferSourceUser] = useState<UserData | null>(null);
+  const [transferTargetUserId, setTransferTargetUserId] = useState<number | null>(null);
+  const [targetUserOutletIds, setTargetUserOutletIds] = useState<Set<number>>(new Set());
+  const [transferMode, setTransferMode] = useState<"all" | "selected">("all");
+  const [sourceOutlets, setSourceOutlets] = useState<OutletSimple[]>([]);
+  const [transferSelectedOutletIds, setTransferSelectedOutletIds] = useState<Set<number>>(new Set());
+  const [transferOutletSearch, setTransferOutletSearch] = useState("");
+  const [transferDayFilter, setTransferDayFilter] = useState("Semua");
+  const [detachFromSource, setDetachFromSource] = useState(true);
+  const [transferring, setTransferring] = useState(false);
+  const [loadingSourceOutlets, setLoadingSourceOutlets] = useState(false);
 
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" }>({
     open: false, msg: "", severity: "success",
@@ -351,6 +365,85 @@ export default function Users() {
       showSnack("Gagal unassign outlet.", "error");
     }
   };
+
+  // ── Transfer Outlet Handlers ───────────────────────────────────────────────
+  const openTransferDialog = async (user: UserData) => {
+    setTransferSourceUser(user);
+    setTransferTargetUserId(null);
+    setTargetUserOutletIds(new Set());
+    setTransferMode("all");
+    setTransferSelectedOutletIds(new Set());
+    setTransferOutletSearch("");
+    setTransferDayFilter("Semua");
+    setDetachFromSource(true);
+    setLoadingSourceOutlets(true);
+    try {
+      const res = await apiBe.get(`/api/web/outlets?user_id=${user.id}`);
+      const raw = res.data;
+      const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+      setSourceOutlets(list);
+    } catch {
+      showSnack("Gagal memuat outlet pengguna.", "error");
+    } finally {
+      setLoadingSourceOutlets(false);
+    }
+  };
+
+  const handleTargetUserChange = async (targetId: number | null) => {
+    setTransferTargetUserId(targetId);
+    if (!targetId) {
+      setTargetUserOutletIds(new Set());
+      return;
+    }
+    try {
+      const res = await apiBe.get(`/api/web/outlets?user_id=${targetId}`);
+      const raw = res.data;
+      const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+      setTargetUserOutletIds(new Set(list.map((o: any) => o.id)));
+    } catch {
+      setTargetUserOutletIds(new Set());
+    }
+  };
+
+  const handleTransferSubmit = async () => {
+    if (!transferSourceUser) return;
+    if (!transferTargetUserId) {
+      showSnack("Pilih akun tujuan transfer terlebih dahulu!", "error");
+      return;
+    }
+    if (transferMode === "selected" && transferSelectedOutletIds.size === 0) {
+      showSnack("Pilih minimal 1 outlet untuk ditransfer!", "error");
+      return;
+    }
+
+    setTransferring(true);
+    try {
+      const payload = {
+        target_user_id: transferTargetUserId,
+        transfer_all: transferMode === "all",
+        outlet_ids: transferMode === "selected" ? Array.from(transferSelectedOutletIds) : [],
+        detach_from_source: detachFromSource,
+      };
+
+      const res = await apiBe.post(`/api/web/users/${transferSourceUser.id}/outlets/transfer`, payload);
+      showSnack(res.data?.message || "Outlet berhasil ditransfer.");
+      setTransferSourceUser(null);
+      await fetchUsers();
+    } catch (err: any) {
+      showSnack(err.response?.data?.message || "Gagal mentransfer outlet.", "error");
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const filteredSourceOutlets = sourceOutlets.filter((o) => {
+    const searchMatch =
+      !transferOutletSearch.trim() ||
+      o.name.toLowerCase().includes(transferOutletSearch.toLowerCase()) ||
+      o.code.toLowerCase().includes(transferOutletSearch.toLowerCase());
+    const dayMatch = transferDayFilter === "Semua" || o.visit_day === transferDayFilter;
+    return searchMatch && dayMatch;
+  });
 
   const availableOutlets = allOutlets.filter((o) => {
     if (userOutlets.some((uo) => uo.id === o.id)) return false;
@@ -577,13 +670,22 @@ export default function Users() {
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               {group === "to" && (
-                                <button
-                                  onClick={() => openOutletDialog(row)}
-                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                  title="Kelola Outlet Sales TO"
-                                >
-                                  <Store className="w-4 h-4" />
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => openOutletDialog(row)}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="Kelola Outlet Sales TO"
+                                  >
+                                    <Store className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => openTransferDialog(row)}
+                                    className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                    title="Transfer Outlet ke Akun Lain"
+                                  >
+                                    <ArrowRightLeft className="w-4 h-4" />
+                                  </button>
+                                </>
                               )}
                               <button
                                 onClick={() => setDuplicateTarget(row)}
@@ -745,6 +847,271 @@ export default function Users() {
                 ))}
               </ul>
             )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Dialog: Transfer Outlet ─────────────────────────────────────── */}
+      <Modal
+        open={transferSourceUser !== null}
+        onClose={() => setTransferSourceUser(null)}
+        title={
+          <>
+            <ArrowRightLeft className="w-5 h-5 text-amber-600" /> Transfer Outlet
+          </>
+        }
+        actions={
+          <>
+            <button
+              onClick={() => setTransferSourceUser(null)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleTransferSubmit}
+              disabled={
+                transferring ||
+                loadingSourceOutlets ||
+                sourceOutlets.length === 0 ||
+                !transferTargetUserId ||
+                (transferMode === "selected" && transferSelectedOutletIds.size === 0)
+              }
+              className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 rounded-lg flex items-center gap-2 transition-colors"
+            >
+              {transferring ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : detachFromSource ? (
+                transferMode === "all" ? (
+                  `Pindahkan Semua (${sourceOutlets.length} Outlet)`
+                ) : (
+                  `Pindahkan ${transferSelectedOutletIds.size} Outlet`
+                )
+              ) : transferMode === "all" ? (
+                `Salin Semua (${sourceOutlets.length} Outlet)`
+              ) : (
+                `Salin ${transferSelectedOutletIds.size} Outlet`
+              )}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {/* Info Akun Sumber */}
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+            <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">
+              Akun Asal (Sumber)
+            </span>
+            <p className="text-sm font-bold text-gray-900">{transferSourceUser?.name}</p>
+            <p className="text-xs text-gray-600">{transferSourceUser?.email}</p>
+            <div className="pt-1 text-xs font-semibold text-amber-900">
+              {loadingSourceOutlets ? (
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Memuat daftar outlet...
+                </span>
+              ) : (
+                <span>Total outlet dimiliki: <strong>{sourceOutlets.length} outlet</strong></span>
+              )}
+            </div>
+          </div>
+
+          {/* Pilih Akun Tujuan */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Akun Tujuan (Penerima Outlet) <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={transferTargetUserId ?? ""}
+              onChange={(e) => handleTargetUserChange(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none bg-white text-sm"
+            >
+              <option value="">-- Pilih Akun Sales Tujuan --</option>
+              {salesToUsers
+                .filter((u) => u.id !== transferSourceUser?.id)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Mode Transfer: Semua atau Sebagian */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pilihan Outlet yang Ditransfer
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTransferMode("all")}
+                className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                  transferMode === "all"
+                    ? "border-amber-600 bg-amber-50/80 text-amber-900 shadow-sm"
+                    : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                }`}
+              >
+                <span className="block text-xs font-bold">Transfer Semua Outlet</span>
+                <span className="text-[11px] text-gray-500 mt-0.5 block">
+                  {sourceOutlets.length} outlet dipindahkan
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTransferMode("selected")}
+                className={`border rounded-xl px-3 py-2.5 text-left transition-colors ${
+                  transferMode === "selected"
+                    ? "border-amber-600 bg-amber-50/80 text-amber-900 shadow-sm"
+                    : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                }`}
+              >
+                <span className="block text-xs font-bold">Pilih Outlet Tertentu</span>
+                <span className="text-[11px] text-gray-500 mt-0.5 block">
+                  {transferSelectedOutletIds.size} outlet dipilih
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Jika Mode === "selected" */}
+          {transferMode === "selected" && (
+            <div className="space-y-2 border border-gray-200 rounded-xl p-3 bg-gray-50/40">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                    <Search className="h-3.5 w-3.5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Cari nama/kode outlet..."
+                    value={transferOutletSearch}
+                    onChange={(e) => setTransferOutletSearch(e.target.value)}
+                    className="block w-full pl-8 pr-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-1 focus:ring-amber-500 focus:border-amber-500 bg-white outline-none"
+                  />
+                </div>
+                <select
+                  value={transferDayFilter}
+                  onChange={(e) => setTransferDayFilter(e.target.value)}
+                  className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white outline-none"
+                >
+                  <option value="Semua">Semua Hari</option>
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-between items-center text-xs text-gray-600 px-1">
+                <span>
+                  Menampilkan: <strong>{filteredSourceOutlets.length}</strong> outlet
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferSelectedOutletIds((prev) => {
+                        const next = new Set(prev);
+                        filteredSourceOutlets.forEach((o) => next.add(o.id));
+                        return next;
+                      });
+                    }}
+                    className="text-amber-700 hover:underline font-semibold"
+                  >
+                    Pilih Semua
+                  </button>
+                  <span>|</span>
+                  <button
+                    type="button"
+                    onClick={() => setTransferSelectedOutletIds(new Set())}
+                    className="text-gray-500 hover:underline"
+                  >
+                    Hapus Pilihan
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white">
+                {filteredSourceOutlets.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">Tidak ada outlet yang sesuai.</p>
+                ) : (
+                  filteredSourceOutlets.map((o) => {
+                    const isChecked = transferSelectedOutletIds.has(o.id);
+                    const isAlreadyInTarget = targetUserOutletIds.has(o.id);
+                    return (
+                      <label
+                        key={o.id}
+                        className="flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setTransferSelectedOutletIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(o.id);
+                                else next.delete(o.id);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 rounded accent-amber-600 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs font-semibold text-gray-900 block">{o.name}</span>
+                            <span className="text-[10px] text-gray-500 font-mono">{o.code}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {isAlreadyInTarget && (
+                            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-medium">
+                              Sudah ada di target
+                            </span>
+                          )}
+                          {o.visit_day && (
+                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium">
+                              {o.visit_day}
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Opsi Lepas dari Akun Asal */}
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={detachFromSource}
+                onChange={(e) => setDetachFromSource(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded accent-amber-600 cursor-pointer"
+              />
+              <div className="text-xs">
+                <span className="font-bold text-gray-900 block">
+                  Lepaskan outlet dari akun asal (Pindah Penuh)
+                </span>
+                <span className="text-gray-500 mt-0.5 block leading-relaxed">
+                  {detachFromSource
+                    ? "Outlet akan dihapus dari akun asal setelah dipindahkan ke akun tujuan."
+                    : "Outlet akan tetap tersimpan di akun asal (salin / kepemilikan bersama)."}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {/* Keterangan Keamanan */}
+          <div className="flex items-start gap-2 p-2.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-100 text-xs">
+            <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
+            <p>
+              <strong>Aman:</strong> Outlet yang sudah dimiliki oleh akun tujuan <strong>tidak akan terhapus</strong>, melainkan bertambah sesuai outlet yang ditransfer.
+            </p>
           </div>
         </div>
       </Modal>
